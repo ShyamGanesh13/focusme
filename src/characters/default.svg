@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!--
+    DeskPal placeholder character ("Pip"). Replace with your own SVG in
+    Settings → Character. Any SVG works; these optional ids/data-parts get
+    extra animation (see docs/CHARACTER_SVG.md):
+      body, face, eyes, eye-left, eye-right, pupils (class="pupil"),
+      mouth, arm-left, arm-right, antenna (or tail), feet
+  -->
+  <defs>
+    <radialGradient id="pipFur" cx="40%" cy="30%" r="75%">
+      <stop offset="0" stop-color="#9fd6ff"/>
+      <stop offset="1" stop-color="#5aa9f0"/>
+    </radialGradient>
+  </defs>
+
+  <g id="feet">
+    <ellipse cx="74" cy="190" rx="20" ry="9" fill="#3f86cf"/>
+    <ellipse cx="126" cy="190" rx="20" ry="9" fill="#3f86cf"/>
+  </g>
+
+  <g id="antenna" data-origin="50% 100%">
+    <path d="M100 58 C 100 40, 108 30, 116 22" fill="none" stroke="#3f86cf" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="118" cy="20" r="9" fill="#ffd166"/>
+  </g>
+
+  <g id="arm-left" data-origin="85% 15%">
+    <rect x="22" y="104" width="22" height="46" rx="11" fill="#4f9be6" transform="rotate(18 33 110)"/>
+  </g>
+  <g id="arm-right" data-origin="15% 15%">
+    <rect x="156" y="104" width="22" height="46" rx="11" fill="#4f9be6" transform="rotate(-18 167 110)"/>
+  </g>
+
+  <g id="body">
+    <ellipse cx="100" cy="122" rx="66" ry="68" fill="url(#pipFur)"/>
+    <ellipse cx="100" cy="146" rx="38" ry="30" fill="#d8efff" opacity=".7"/>
+  </g>
+
+  <g id="face" data-origin="50% 70%">
+    <ellipse cx="66" cy="124" rx="10" ry="6" fill="#ff8fab" opacity=".55"/>
+    <ellipse cx="134" cy="124" rx="10" ry="6" fill="#ff8fab" opacity=".55"/>
+
+    <g id="eyes" data-origin="50% 50%">
+      <g id="eye-left">
+        <ellipse cx="78" cy="102" rx="15" ry="18" fill="#fff"/>
+        <g class="pupil">
+          <circle cx="80" cy="104" r="9" fill="#1f2433"/>
+          <circle cx="83" cy="100" r="3.2" fill="#fff"/>
+        </g>
+      </g>
+      <g id="eye-right">
+        <ellipse cx="122" cy="102" rx="15" ry="18" fill="#fff"/>
+        <g class="pupil">
+          <circle cx="124" cy="104" r="9" fill="#1f2433"/>
+          <circle cx="127" cy="100" r="3.2" fill="#fff"/>
+        </g>
+      </g>
+    </g>
+
+    <path id="mouth" data-origin="50% 0%" d="M90 130 Q100 141 110 130" fill="none" stroke="#1f2433" stroke-width="4" stroke-linecap="round"/>
+  </g>
+</svg>

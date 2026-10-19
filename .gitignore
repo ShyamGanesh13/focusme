@@ -1,0 +1,12 @@
+# dependencies / build output
+node_modules/
+src-tauri/target/
+src-tauri/gen/
+
+# third-party material captured during research — local only, never push
+research/binary/
+research/extracted/
+_to_delete/
+
+.DS_Store
+*.log

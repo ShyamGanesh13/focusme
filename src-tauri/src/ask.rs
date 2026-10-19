@@ -1,0 +1,245 @@
+//! The chat box brain. No language model: a line is sorted by its shape
+//! (`/command`, `question?`, or a note), and questions are matched to an
+//! intent by keywords. Fast, offline, predictable.
+
+use regex::Regex;
+use serde::Serialize;
+use std::sync::OnceLock;
+
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Answer {
+    /// "answer" | "note" | "command" | "error"
+    pub kind: String,
+    /// One line — what the pet says in its speech bubble.
+    pub title: String,
+    /// Extra detail shown in the chat log.
+    pub lines: Vec<String>,
+    /// Something the frontend should do after showing the answer:
+    /// "hide" | "settings" | "quit" | "session" | "sleep" | "wave".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub action: Option<String>,
+}
+
+impl Answer {
+    fn make(kind: &str, title: &str, lines: Vec<String>) -> Self {
+        Self { kind: kind.into(), title: title.into(), lines, action: None }
+    }
+    pub fn answer(title: &str, lines: Vec<String>) -> Self { Self::make("answer", title, lines) }
+    pub fn note(title: &str) -> Self { Self::make("note", title, vec![]) }
+    pub fn command(title: &str) -> Self { Self::make("command", title, vec![]) }
+    pub fn error(title: &str, lines: Vec<String>) -> Self { Self::make("error", title, lines) }
+    pub fn with_action(mut self, a: &str) -> Self {
+        self.action = Some(a.into());
+        self
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Shape {
+    Command,
+    Question,
+    Note,
+}
+
+const GREETINGS: &[&str] = &["hi", "hello", "hey", "hiya", "yo", "good morning", "good evening", "good afternoon"];
+
+fn norm(s: &str) -> String {
+    s.trim().trim_end_matches(['?', '!', '.']).trim().to_lowercase()
+}
+
+pub fn is_greeting(s: &str) -> bool {
+    let n = norm(s);
+    GREETINGS.iter().any(|g| n == *g || n.starts_with(&format!("{g} ")) && n.split_whitespace().count() <= 3)
+}
+
+/// "/x" runs, "x?" (or a bare greeting / "help") asks, anything else is a note.
+pub fn classify(s: &str) -> Shape {
+    let t = s.trim();
+    if t.starts_with('/') {
+        Shape::Command
+    } else if t.ends_with('?') || is_greeting(t) || norm(t) == "help" {
+        Shape::Question
+    } else {
+        Shape::Note
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Intent {
+    Greeting,
+    Help,
+    Battery,
+    Memory,
+    Cpu,
+    Disk,
+    Uptime,
+    Internet,
+    Weather(Option<String>),
+    Timer,
+    Notes,
+    Reminders,
+    Clock,
+    Name,
+    Unknown,
+}
+
+fn words(s: &str) -> Vec<String> {
+    s.to_lowercase()
+        .split(|c: char| !c.is_alphanumeric() && c != '-')
+        .filter(|w| !w.is_empty())
+        .map(String::from)
+        .collect()
+}
+
+fn weather_place() -> &'static Regex {
+    static R: OnceLock<Regex> = OnceLock::new();
+    R.get_or_init(|| Regex::new(r"(?i)\b(?:in|at|for)\s+([\p{L} .'-]{2,60})\??\s*$").unwrap())
+}
+
+pub fn intent(q: &str) -> Intent {
+    if is_greeting(q) {
+        return Intent::Greeting;
+    }
+    let w = words(q);
+    let has = |set: &[&str]| w.iter().any(|x| set.contains(&x.as_str()));
+
+    if has(&["weather", "rain", "raining", "rainy", "temperature", "forecast", "sunny", "umbrella", "humid", "humidity", "hot", "cold"]) {
+        let place = weather_place()
+            .captures(q.trim())
+            .map(|c| c[1].trim().to_string())
+            .filter(|p| !p.is_empty() && !["today", "tomorrow", "here"].contains(&p.to_lowercase().as_str()));
+        return Intent::Weather(place);
+    }
+    if has(&["help", "commands"]) || norm(q).contains("what can you do") {
+        return Intent::Help;
+    }
+    if has(&["battery", "charge", "charging", "plugged", "power"]) {
+        return Intent::Battery;
+    }
+    if has(&["memory", "ram", "mem", "hog", "hogging", "eating"]) {
+        return Intent::Memory;
+    }
+    if has(&["cpu", "processor", "slow", "lag", "lagging", "laggy", "busy", "load"]) {
+        return Intent::Cpu;
+    }
+    if has(&["disk", "disks", "storage", "space", "drive", "drives", "ssd"]) {
+        return Intent::Disk;
+    }
+    if has(&["uptime", "restart", "restarted", "reboot", "rebooted", "boot", "booted"]) {
+        return Intent::Uptime;
+    }
+    if has(&["internet", "online", "offline", "wifi", "wi-fi", "network", "connected"]) {
+        return Intent::Internet;
+    }
+    if has(&["timer", "session", "focus", "pomodoro", "left"]) {
+        return Intent::Timer;
+    }
+    if has(&["reminder", "reminders", "remind"]) {
+        return Intent::Reminders;
+    }
+    if has(&["note", "notes"]) {
+        return Intent::Notes;
+    }
+    if has(&["time", "date", "day", "today"]) {
+        return Intent::Clock;
+    }
+    if has(&["name", "who"]) {
+        return Intent::Name;
+    }
+    Intent::Unknown
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Command {
+    Timer(Option<u32>),
+    Stop,
+    Remind(String),
+    Note(String),
+    Hide,
+    Settings,
+    Quit,
+    Sleep,
+    Help,
+    Unknown(String),
+}
+
+pub fn command(s: &str) -> Command {
+    let t = s.trim().trim_start_matches('/');
+    let (head, rest) = match t.find(char::is_whitespace) {
+        Some(i) => (&t[..i], t[i..].trim()),
+        None => (t, ""),
+    };
+    match head.to_lowercase().as_str() {
+        "timer" | "focus" | "pomodoro" | "start" => {
+            let n = rest.split_whitespace().next().and_then(|x| x.trim_end_matches(['m', 'M']).parse::<u32>().ok());
+            Command::Timer(n.map(|n| n.clamp(1, 600)))
+        }
+        "stop" | "end" => Command::Stop,
+        "remind" | "reminder" | "r" => Command::Remind(rest.to_string()),
+        "note" | "n" => Command::Note(rest.to_string()),
+        "hide" => Command::Hide,
+        "settings" | "prefs" | "preferences" => Command::Settings,
+        "quit" | "exit" | "bye" => Command::Quit,
+        "sleep" | "nap" => Command::Sleep,
+        "help" | "?" => Command::Help,
+        other => Command::Unknown(other.to_string()),
+    }
+}
+
+pub fn help() -> Answer {
+    Answer::answer(
+        "Here's what I understand",
+        vec![
+            "battery?  memory?  cpu?  disk?  uptime?  internet?".into(),
+            "weather?  ·  weather in Chennai?".into(),
+            "timer?  notes?  reminders?  time?".into(),
+            "/timer 25  ·  /stop  ·  /remind call Kavi at 5pm".into(),
+            "/sleep  ·  /hide  ·  /settings  ·  /quit".into(),
+            "Anything else you type is saved as a note.".into(),
+        ],
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shapes() {
+        assert_eq!(classify("/timer 25"), Shape::Command);
+        assert_eq!(classify("battery?"), Shape::Question);
+        assert_eq!(classify("hi"), Shape::Question);
+        assert_eq!(classify("Hello there"), Shape::Question);
+        assert_eq!(classify("help"), Shape::Question);
+        assert_eq!(classify("buy milk on the way home"), Shape::Note);
+        assert_eq!(classify("hiking trip ideas"), Shape::Note);
+    }
+
+    #[test]
+    fn intents() {
+        assert_eq!(intent("battery?"), Intent::Battery);
+        assert_eq!(intent("what's hogging my ram?"), Intent::Memory);
+        assert_eq!(intent("why is it so slow?"), Intent::Cpu);
+        assert_eq!(intent("how much disk space?"), Intent::Disk);
+        assert_eq!(intent("am I online?"), Intent::Internet);
+        assert_eq!(intent("weather?"), Intent::Weather(None));
+        assert_eq!(intent("weather in Coimbatore?"), Intent::Weather(Some("Coimbatore".into())));
+        assert_eq!(intent("will it rain today?"), Intent::Weather(None));
+        assert_eq!(intent("how much time left on the timer?"), Intent::Timer);
+        assert_eq!(intent("what time is it?"), Intent::Clock);
+        assert_eq!(intent("notes?"), Intent::Notes);
+        assert_eq!(intent("hey"), Intent::Greeting);
+        assert_eq!(intent("what is love?"), Intent::Unknown);
+    }
+
+    #[test]
+    fn commands() {
+        assert_eq!(command("/timer 25"), Command::Timer(Some(25)));
+        assert_eq!(command("/timer"), Command::Timer(None));
+        assert_eq!(command("/pomodoro 50m"), Command::Timer(Some(50)));
+        assert_eq!(command("/remind call Kavi at 5pm"), Command::Remind("call Kavi at 5pm".into()));
+        assert_eq!(command("/QUIT"), Command::Quit);
+        assert_eq!(command("/dance"), Command::Unknown("dance".into()));
+    }
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Event + core access for the pet overlay and the settings window",
+  "windows": ["pet", "settings"],
+  "permissions": ["core:default"]
+}

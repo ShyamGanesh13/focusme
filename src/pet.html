@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DeskPal</title>
+  <link rel="stylesheet" href="pet.css">
+</head>
+<body>
+  <!-- Preview-only backdrop (hidden inside the app) -->
+  <div id="previewDesk" hidden></div>
+
+  <div id="pet" aria-label="DeskPal">
+    <div id="bubble" role="status" aria-live="polite" hidden></div>
+    <div id="badge" hidden></div>
+    <div id="rig"><div id="art"></div></div>
+    <div id="shadow"></div>
+  </div>
+
+  <div id="fx" aria-hidden="true"></div>
+
+  <div id="chat" hidden>
+    <div id="chatLog"></div>
+    <div id="chips">
+      <button data-q="battery?">battery?</button>
+      <button data-q="memory?">memory?</button>
+      <button data-q="weather?">weather?</button>
+      <button data-q="cpu?">cpu?</button>
+      <button data-q="disk?">disk?</button>
+      <button data-q="/timer 25">/timer 25</button>
+      <button data-q="help">help</button>
+    </div>
+    <div id="chatBox">
+      <input id="chatInput" type="text" autocomplete="off" spellcheck="false"
+             placeholder="Write a note, or ask me something…" maxlength="4000">
+      <div id="chatBar">
+        <span id="chatHint">Enter saves a note</span>
+        <button id="chatSend" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="menu" hidden role="menu">
+    <button data-act="chat" role="menuitem">Talk</button>
+    <button data-act="focus" role="menuitem">Start focus session</button>
+    <button data-act="sleep" role="menuitem">Nap</button>
+    <button data-act="settings" role="menuitem">Settings…</button>
+    <button data-act="hide" role="menuitem">Hide</button>
+    <button data-act="quit" role="menuitem">Quit</button>
+  </div>
+
+  <script type="module" src="pet.js"></script>
+</body>
+</html>

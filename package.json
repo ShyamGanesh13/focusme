@@ -1,0 +1,15 @@
+{
+  "name": "deskpal",
+  "private": true,
+  "version": "0.1.0",
+  "description": "A desktop companion for macOS that lives above your Dock, chats, keeps notes, and runs focus timers.",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "tauri": "tauri",
+    "preview": "node scripts/preview-server.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.3"
+  }
+}

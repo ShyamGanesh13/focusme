@@ -1,0 +1,27 @@
+[package]
+name = "deskpal"
+version = "0.1.0"
+description = "A desktop companion that lives above your Dock"
+authors = ["Shyam Ganesh"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "macos-private-api", "image-png"] }
+tauri-plugin-autostart = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1"
+sysinfo = "0.39"
+starship-battery = "0.12"
+ureq = { version = "2", features = ["json"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
