@@ -580,6 +580,16 @@ listen("session-started", ({ payload: m }) => {
   say(`Focus time — ${m} min. I'll keep watch.`);
 });
 listen("session-stopped", () => { badgeEl.hidden = true; });
+listen("session-busy", () => {
+  touched();
+  say("You're already in a focus session.", {
+    ms: 0, alert: true,
+    actions: [
+      { label: "Keep going", act: () => {} },
+      { label: "End it", act: () => invoke("stop_session") },
+    ],
+  });
+});
 listen("session-paused", () => say("Focus paused.", { ms: 2500 }));
 listen("session-resumed", () => say("Back to it.", { ms: 2000 }));
 listen("session-done", () => {

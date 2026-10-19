@@ -88,6 +88,40 @@ pub fn pin_above_everything(app: &AppHandle) {
 #[cfg(not(target_os = "macos"))]
 pub fn pin_above_everything(_app: &AppHandle) {}
 
+/// Give the pet window real keyboard focus so the chat box can be typed into.
+///
+/// The overlay is a *non-activating* accessory panel: clicking it never makes
+/// our app active, which is what keeps it hovering over other apps without
+/// stealing focus — but it also means a plain `makeKeyWindow` from the
+/// background won't deliver keystrokes. When the user actually opens the chat
+/// we briefly activate the app and make the panel key, so the text field
+/// receives input. It stays on the current Space (canJoinAllSpaces), so this
+/// doesn't yank you out of a full-screen app.
+#[cfg(target_os = "macos")]
+#[allow(unexpected_cfgs)]
+pub fn focus_for_input(app: &AppHandle) {
+    use objc::runtime::{Class, Object};
+    use objc::{msg_send, sel, sel_impl};
+
+    let Some(win) = app.get_webview_window("pet") else { return };
+    let Ok(ptr) = win.ns_window() else { return };
+    let ns = ptr as *mut Object;
+    if ns.is_null() {
+        return;
+    }
+    unsafe {
+        if let Some(appcls) = Class::get("NSApplication") {
+            let nsapp: *mut Object = msg_send![appcls, sharedApplication];
+            let _: () = msg_send![nsapp, activateIgnoringOtherApps: true];
+        }
+        let nil: *mut Object = std::ptr::null_mut();
+        let _: () = msg_send![ns, makeKeyAndOrderFront: nil];
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn focus_for_input(_app: &AppHandle) {}
+
 pub fn setup(app: &App) -> tauri::Result<()> {
     let handle = app.handle().clone();
     fit_to_work_area(&handle);

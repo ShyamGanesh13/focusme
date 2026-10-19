@@ -46,6 +46,12 @@ pub fn set_hitbox(state: State<AppState>, rects: Vec<Rect>, hold: bool) {
 pub fn focus_pet(app: AppHandle) {
     if let Some(w) = app.get_webview_window("pet") {
         let _ = w.set_ignore_cursor_events(false);
+    }
+    // macOS: activate + makeKey so the non-activating panel accepts typing.
+    #[cfg(target_os = "macos")]
+    overlay::focus_for_input(&app);
+    #[cfg(not(target_os = "macos"))]
+    if let Some(w) = app.get_webview_window("pet") {
         let _ = w.set_focus();
     }
 }
@@ -108,7 +114,20 @@ pub fn status(state: State<AppState>) -> Status {
     status_of(&state)
 }
 
-pub fn begin_session(app: &AppHandle, state: &AppState, minutes: u32) {
+/// True while a focus session is running or paused.
+pub fn session_active(state: &AppState) -> bool {
+    let rt = state.rt.lock().unwrap();
+    rt.session_end.is_some() || rt.session_paused.is_some()
+}
+
+/// Start a focus session. Returns false (and changes nothing) if one is
+/// already running or paused, so a second start never silently clobbers the
+/// first. Callers decide how to tell the user.
+pub fn begin_session(app: &AppHandle, state: &AppState, minutes: u32) -> bool {
+    if session_active(state) {
+        let _ = app.emit("session-busy", ());
+        return false;
+    }
     let minutes = minutes.clamp(1, 600);
     {
         let mut rt = state.rt.lock().unwrap();
@@ -117,6 +136,7 @@ pub fn begin_session(app: &AppHandle, state: &AppState, minutes: u32) {
         rt.session_paused = None;
     }
     let _ = app.emit("session-started", minutes);
+    true
 }
 
 #[tauri::command]
@@ -288,8 +308,23 @@ fn run_command(app: &AppHandle, state: &AppState, cmd: Command) -> Answer {
     match cmd {
         Command::Timer(m) => {
             let minutes = m.unwrap_or_else(|| state.config.lock().unwrap().session.minutes);
-            begin_session(app, state, minutes);
-            Answer::command(&format!("Focus session started — {minutes} min. You've got this.")).with_action("session")
+            if begin_session(app, state, minutes) {
+                Answer::command(&format!("Focus session started — {minutes} min. You've got this.")).with_action("session")
+            } else {
+                let rt = state.rt.lock().unwrap();
+                let detail = match (rt.session_paused, rt.session_end) {
+                    (Some(rem), _) => format!("Paused with {}:{:02} left.", rem / 60, rem % 60),
+                    (None, Some(end)) => {
+                        let left = (end - Local::now()).num_seconds().max(0);
+                        format!("{}:{:02} left.", left / 60, left % 60)
+                    }
+                    _ => String::new(),
+                };
+                Answer::answer(
+                    "A focus session is already running.",
+                    vec![detail, "Type /stop to end it, then start a new one.".into()].into_iter().filter(|s| !s.is_empty()).collect(),
+                )
+            }
         }
         Command::Stop => {
             let was = state.rt.lock().unwrap().session_end.take().is_some();
