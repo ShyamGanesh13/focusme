@@ -256,10 +256,16 @@ $("hidePet").addEventListener("click", () => invoke("set_pet_visible", { visible
 $("quit").addEventListener("click", () => invoke("quit_app"));
 
 // Another window (or a /remind in the chat) changed the config.
+// While a list field is being edited, DON'T swap `cfg` or re-render: the
+// reminder/routine inputs hold a reference to their row object, and replacing
+// `cfg` would orphan it — further keystrokes would update a detached object
+// while the next save wrote the stale copy (labels got truncated mid-typing).
+// Our own debounced save already keeps disk in sync, so ignoring the echo is safe.
 listen("config-changed", ({ payload }) => {
   const editing = document.activeElement && document.activeElement.closest("#remList, #routineList, input[type=text]");
+  if (editing) return;
   cfg = payload;
-  if (!editing) fill();
+  fill();
 });
 
 fill();
