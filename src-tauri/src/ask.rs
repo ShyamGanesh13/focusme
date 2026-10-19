@@ -156,12 +156,20 @@ pub enum Command {
     Stop,
     Remind(String),
     Note(String),
+    /// Repeating water reminder: on/off, and how often (minutes).
+    Water { on: bool, minutes: Option<u32> },
     Hide,
     Settings,
     Quit,
     Sleep,
     Help,
     Unknown(String),
+}
+
+/// First run of digits anywhere in the text, e.g. "5mins" / "5 min" -> 5.
+fn first_number(s: &str) -> Option<u32> {
+    let digits: String = s.chars().skip_while(|c| !c.is_ascii_digit()).take_while(|c| c.is_ascii_digit()).collect();
+    digits.parse::<u32>().ok()
 }
 
 pub fn command(s: &str) -> Command {
@@ -172,10 +180,17 @@ pub fn command(s: &str) -> Command {
     };
     match head.to_lowercase().as_str() {
         "timer" | "focus" | "pomodoro" | "start" => {
-            let n = rest.split_whitespace().next().and_then(|x| x.trim_end_matches(['m', 'M']).parse::<u32>().ok());
-            Command::Timer(n.map(|n| n.clamp(1, 600)))
+            Command::Timer(first_number(rest).map(|n| n.clamp(1, 600)))
         }
         "stop" | "end" => Command::Stop,
+        "water" | "hydrate" => {
+            let lower = rest.to_lowercase();
+            if lower.starts_with("off") || lower.starts_with("stop") || lower.starts_with("no") {
+                Command::Water { on: false, minutes: None }
+            } else {
+                Command::Water { on: true, minutes: first_number(rest).map(|n| n.clamp(1, 480)) }
+            }
+        }
         "remind" | "reminder" | "r" => Command::Remind(rest.to_string()),
         "note" | "n" => Command::Note(rest.to_string()),
         "hide" => Command::Hide,
@@ -195,6 +210,7 @@ pub fn help() -> Answer {
             "weather?  ·  weather in Chennai?".into(),
             "timer?  notes?  reminders?  time?".into(),
             "/timer 25  ·  /stop  ·  /remind call Kavi at 5pm".into(),
+            "/water 10  ·  a drink-water nudge every 10 min  (/water off)".into(),
             "/sleep  ·  /hide  ·  /settings  ·  /quit".into(),
             "Anything else you type is saved as a note.".into(),
         ],
@@ -240,6 +256,9 @@ mod tests {
         assert_eq!(command("/pomodoro 50m"), Command::Timer(Some(50)));
         assert_eq!(command("/remind call Kavi at 5pm"), Command::Remind("call Kavi at 5pm".into()));
         assert_eq!(command("/QUIT"), Command::Quit);
+        assert_eq!(command("/water 10"), Command::Water { on: true, minutes: Some(10) });
+        assert_eq!(command("/water"), Command::Water { on: true, minutes: None });
+        assert_eq!(command("/water off"), Command::Water { on: false, minutes: None });
         assert_eq!(command("/dance"), Command::Unknown("dance".into()));
     }
 }

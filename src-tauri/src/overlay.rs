@@ -30,12 +30,70 @@ pub fn fit_to_work_area(app: &AppHandle) {
     }
 }
 
+/// Keep the overlay above the app you're actually using.
+///
+/// Tauri's `always_on_top` only lifts the window to the floating level, and a
+/// no-dock (accessory) app's floating window still gets ordered behind the
+/// frontmost application. So on macOS we raise the native NSWindow to the
+/// status-item level and set a collection behavior that puts it on every
+/// Space and alongside full-screen apps, which is the standard recipe for a
+/// desktop pet that has to sit on top of everything.
+#[cfg(target_os = "macos")]
+pub fn pin_above_everything(app: &AppHandle) {
+    use objc::runtime::Object;
+    use objc::{msg_send, sel, sel_impl};
+    let Some(win) = app.get_webview_window("pet") else { return };
+    let Ok(ptr) = win.ns_window() else { return };
+    let ns = ptr as *mut Object;
+    if ns.is_null() {
+        return;
+    }
+    // NSStatusWindowLevel = 25: above ordinary (0) and floating (3) windows,
+    // below the menu bar.
+    const STATUS_LEVEL: isize = 25;
+    // canJoinAllSpaces (1<<0) | stationary (1<<4) | fullScreenAuxiliary (1<<8)
+    const BEHAVIOR: usize = (1 << 0) | (1 << 4) | (1 << 8);
+    unsafe {
+        let _: () = msg_send![ns, setLevel: STATUS_LEVEL];
+        let _: () = msg_send![ns, setCollectionBehavior: BEHAVIOR];
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn pin_above_everything(_app: &AppHandle) {}
+
 pub fn setup(app: &App) -> tauri::Result<()> {
     let handle = app.handle().clone();
     fit_to_work_area(&handle);
     if let Some(win) = app.get_webview_window("pet") {
         let _ = win.set_ignore_cursor_events(true);
         win.show()?;
+        // The window level has to sit above ordinary windows or a maximized
+        // app paints over the overlay; alwaysOnTop is set in config but we
+        // reassert it here after show for good measure.
+        let _ = win.set_always_on_top(true);
+        // Devtools are opened only when DESKPAL_DEVTOOLS=1 — never automatically.
+        #[cfg(debug_assertions)]
+        if std::env::var("DESKPAL_DEVTOOLS").is_ok() {
+            win.open_devtools();
+        }
+    }
+    pin_above_everything(&handle);
+    // The monitor's work area can read as empty for the first instant after
+    // launch, which would leave the window at its default 900x600. Re-fit and
+    // re-pin the level a couple of times shortly after show.
+    {
+        let h = handle.clone();
+        std::thread::spawn(move || {
+            for ms in [150u64, 600, 1500] {
+                std::thread::sleep(Duration::from_millis(ms));
+                let h2 = h.clone();
+                let _ = h.run_on_main_thread(move || {
+                    fit_to_work_area(&h2);
+                    pin_above_everything(&h2);
+                });
+            }
+        });
     }
     std::thread::spawn(move || hit_loop(handle));
     Ok(())
@@ -104,7 +162,7 @@ pub fn open_settings(app: &AppHandle) {
         return;
     }
     let built = WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("settings.html".into()))
-        .title("DeskPal Settings")
+        .title("FocusMe Settings")
         .inner_size(620.0, 680.0)
         .min_inner_size(520.0, 520.0)
         .center()
@@ -116,17 +174,17 @@ pub fn open_settings(app: &AppHandle) {
 }
 
 pub fn build_tray(app: &App) -> tauri::Result<()> {
-    let chat = MenuItem::with_id(app, "chat", "Talk to DeskPal", true, None::<&str>)?;
+    let chat = MenuItem::with_id(app, "chat", "Talk to FocusMe", true, None::<&str>)?;
     let focus = MenuItem::with_id(app, "focus", "Start focus session", true, None::<&str>)?;
     let toggle = MenuItem::with_id(app, "toggle", "Show / hide pet", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings…", true, Some("CmdOrCtrl+,"))?;
-    let quit = MenuItem::with_id(app, "quit", "Quit DeskPal", true, Some("CmdOrCtrl+Q"))?;
+    let quit = MenuItem::with_id(app, "quit", "Quit FocusMe", true, Some("CmdOrCtrl+Q"))?;
     let sep = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(app, &[&chat, &focus, &sep, &toggle, &settings, &sep2, &quit])?;
 
     let mut tray = TrayIconBuilder::with_id("main")
-        .tooltip("DeskPal")
+        .tooltip("FocusMe")
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "chat" => {

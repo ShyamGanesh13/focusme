@@ -1,0 +1,365 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!--
+    Shyam - shaded desktop companion for DeskPal.
+    Parts: feet, arm-left, arm-right, body, tail (shoulder bag), face,
+           eyes / eye-left / eye-right, .pupil, mouth.
+    Regenerate with gen3d.py.
+  -->
+
+  <defs>
+    <clipPath id="torsoClip"><path d="M174,298 C174,278 188,266 204,264 L308,264 C324,266 338,278 338,298 L348,406 C350,420 338,430 324,430 L188,430 C174,430 162,420 164,406 Z"/></clipPath>
+    <clipPath id="faceClip"><ellipse cx="256" cy="178" rx="94" ry="92"/></clipPath>
+
+    <radialGradient id="skinG" cx="36%" cy="26%" r="82%">
+      <stop offset="0%"   stop-color="#E6AE86"/>
+      <stop offset="52%"  stop-color="#CE8C62"/>
+      <stop offset="100%" stop-color="#A96A44"/>
+    </radialGradient>
+    <radialGradient id="limbG" cx="30%" cy="18%" r="95%">
+      <stop offset="0%"   stop-color="#E6AE86"/>
+      <stop offset="60%"  stop-color="#CE8C62"/>
+      <stop offset="100%" stop-color="#8A5232"/>
+    </radialGradient>
+    <linearGradient id="hatG" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%"   stop-color="#3A3A46"/>
+      <stop offset="45%"  stop-color="#1C1C24"/>
+      <stop offset="100%" stop-color="#0A0A0F"/>
+    </linearGradient>
+    <linearGradient id="brimG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#1C1C24"/>
+      <stop offset="100%" stop-color="#0A0A0F"/>
+    </linearGradient>
+    <linearGradient id="hairG" x1="25%" y1="0%" x2="75%" y2="100%">
+      <stop offset="0%"   stop-color="#4A4150"/>
+      <stop offset="45%"  stop-color="#241F2C"/>
+      <stop offset="100%" stop-color="#0E0C14"/>
+    </linearGradient>
+    <linearGradient id="whiteG" x1="10%" y1="0%" x2="90%" y2="100%">
+      <stop offset="0%"   stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#D4DEE6"/>
+    </linearGradient>
+    <linearGradient id="blueG" x1="10%" y1="0%" x2="90%" y2="100%">
+      <stop offset="0%"   stop-color="#AEE2F4"/>
+      <stop offset="100%" stop-color="#54A2C4"/>
+    </linearGradient>
+    <linearGradient id="navyG" x1="10%" y1="0%" x2="90%" y2="100%">
+      <stop offset="0%"   stop-color="#2B4260"/>
+      <stop offset="100%" stop-color="#0E1A2A"/>
+    </linearGradient>
+    <linearGradient id="shortG" x1="15%" y1="0%" x2="85%" y2="100%">
+      <stop offset="0%"   stop-color="#C2D9EC"/>
+      <stop offset="100%" stop-color="#7DA1C0"/>
+    </linearGradient>
+    <linearGradient id="strapG" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#343B47"/>
+      <stop offset="100%" stop-color="#13161C"/>
+    </linearGradient>
+    <radialGradient id="irisG" cx="40%" cy="32%" r="72%">
+      <stop offset="0%"   stop-color="#7A4E2C"/>
+      <stop offset="62%"  stop-color="#43240F"/>
+      <stop offset="100%" stop-color="#1E1008"/>
+    </radialGradient>
+    <radialGradient id="scleraG" cx="42%" cy="30%" r="80%">
+      <stop offset="0%"   stop-color="#FFFFFF"/>
+      <stop offset="72%"  stop-color="#F3EFE9"/>
+      <stop offset="100%" stop-color="#D9D1C8"/>
+    </radialGradient>
+    <linearGradient id="lensG" x1="12%" y1="0%" x2="88%" y2="100%">
+      <stop offset="0%"   stop-color="#FFFFFF" stop-opacity=".42"/>
+      <stop offset="40%"  stop-color="#DCEAF6" stop-opacity=".12"/>
+      <stop offset="100%" stop-color="#AFC8DC" stop-opacity=".22"/>
+    </linearGradient>
+    <linearGradient id="frameG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#C9D1DC"/>
+      <stop offset="100%" stop-color="#7B8491"/>
+    </linearGradient>
+    <linearGradient id="beardG" x1="30%" y1="0%" x2="70%" y2="100%">
+      <stop offset="0%"   stop-color="#4C4259"/>
+      <stop offset="100%" stop-color="#241F2E"/>
+    </linearGradient>
+
+    <filter id="soft" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="9"/>
+    </filter>
+    <filter id="soft4" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="4.5"/>
+    </filter>
+    <filter id="soft14" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+  </defs>
+
+
+  <g id="feet">
+    <ellipse cx="222" cy="498" rx="26" ry="13" fill="url(#limbG)"/>
+    <ellipse cx="290" cy="498" rx="26" ry="13" fill="url(#limbG)"/>
+    <ellipse cx="222" cy="504" rx="24" ry="7" fill="#8A5232" opacity=".45"
+             filter="url(#soft4)"/>
+    <ellipse cx="290" cy="504" rx="24" ry="7" fill="#8A5232" opacity=".45"
+             filter="url(#soft4)"/>
+  </g>
+
+  <g>
+    <path d="M202,452 L244,452 L242,492 L206,492 Z" fill="url(#limbG)"/>
+    <path d="M268,452 L310,452 L306,492 L272,492 Z" fill="url(#limbG)"/>
+    <path d="M184,412 L328,412 L336,454 C338,464 330,470 318,470 L270,470
+             L264,432 L248,432 L242,470 L194,470 C182,470 174,464 176,454 Z"
+          fill="url(#shortG)"/>
+    <path d="M184,412 L328,412 L330,432 L182,432 Z" fill="#7F9EB8" opacity=".40"
+          filter="url(#soft4)"/>
+    <path d="M300,414 L336,454 C338,464 330,470 318,470 L286,470 Z"
+          fill="#7F9EB8" opacity=".35" filter="url(#soft4)"/>
+    <path d="M256,414 L256,432" stroke="#8FAAC2" stroke-width="4" opacity=".8"/>
+  </g>
+
+  <g id="arm-left" data-origin="50% 8%">
+    <g transform="rotate(6 184 288)">
+      <path d="M168,318 L200,318 L197,392.0
+               Q184,406.0 171,392.0 Z" fill="url(#limbG)"/>
+      <path d="M160,284 Q184,268 208,284
+               L205,344 Q184,354 163,344 Z"
+            fill="url(#whiteG)"/>
+      <path d="M169,276 L175,351" stroke="url(#navyG)"
+            stroke-width="11"/>
+      <path d="M191,276 L197,349" stroke="url(#blueG)"
+            stroke-width="13"/>
+      <path d="M160,338 Q184,348 208,338
+               L205,344 Q184,354 163,344 Z"
+            fill="#223044" opacity=".30" filter="url(#soft4)"/>
+      <circle cx="184" cy="402.0" r="19" fill="url(#limbG)"/>
+      <ellipse cx="178" cy="396.0" rx="9" ry="7" fill="#FFD9BC"
+               opacity=".45" filter="url(#soft4)"/>
+    </g>
+  </g>
+
+  <g id="arm-right" data-origin="50% 8%">
+    <g transform="rotate(-6 328 288)">
+      <path d="M312,318 L344,318 L341,392.0
+               Q328,406.0 315,392.0 Z" fill="url(#limbG)"/>
+      <path d="M304,284 Q328,268 352,284
+               L349,344 Q328,354 307,344 Z"
+            fill="url(#whiteG)"/>
+      <path d="M313,276 L319,351" stroke="url(#navyG)"
+            stroke-width="11"/>
+      <path d="M335,276 L341,349" stroke="url(#blueG)"
+            stroke-width="13"/>
+      <path d="M304,338 Q328,348 352,338
+               L349,344 Q328,354 307,344 Z"
+            fill="#223044" opacity=".30" filter="url(#soft4)"/>
+      <circle cx="328" cy="402.0" r="19" fill="url(#limbG)"/>
+      <ellipse cx="322" cy="396.0" rx="9" ry="7" fill="#FFD9BC"
+               opacity=".45" filter="url(#soft4)"/>
+    </g>
+  </g>
+
+  <g id="body">
+    <path d="M174,298 C174,278 188,266 204,264 L308,264 C324,266 338,278 338,298 L348,406 C350,420 338,430 324,430 L188,430 C174,430 162,420 164,406 Z" fill="url(#whiteG)"/>
+    <g clip-path="url(#torsoClip)">
+      <path d="M176,258 L190,258 L197,436 L183,436 Z" fill="url(#navyG)"/>
+      <path d="M200,258 L226,258 L233,436 L207,436 Z" fill="url(#blueG)"/>
+      <path d="M238,258 L249,258 L256,436 L245,436 Z" fill="url(#navyG)"/>
+      <path d="M258,258 L284,258 L291,436 L265,436 Z" fill="url(#blueG)"/>
+      <path d="M294,258 L305,258 L312,436 L301,436 Z" fill="url(#navyG)"/>
+      <path d="M313,258 L336,258 L343,436 L320,436 Z" fill="url(#blueG)"/>
+      <path d="M338,258 L350,258 L357,436 L345,436 Z" fill="url(#navyG)"/>
+      <!-- fabric shading -->
+      <ellipse cx="330" cy="400" rx="80" ry="90" fill="#2A3444" opacity=".26"
+               filter="url(#soft14)"/>
+      <ellipse cx="256" cy="268" rx="96" ry="34" fill="#2A3444" opacity=".30"
+               filter="url(#soft)"/>
+      <ellipse cx="206" cy="300" rx="34" ry="56" fill="#FFFFFF" opacity=".14"
+               filter="url(#soft)"/>
+      <path d="M164,418 L350,418 L350,436 L164,436 Z" fill="#1A2330" opacity=".22"
+            filter="url(#soft4)"/>
+    </g>
+    <!-- open collar -->
+    <path d="M224,262 L256,334 L288,262 Z" fill="url(#limbG)"/>
+    <path d="M224,262 L256,334 L288,262 Z" fill="#8A5232" opacity=".35"/>
+    <path d="M226,266 Q256,304 286,266" stroke="#E4E9F0" stroke-width="5"
+          fill="none" stroke-linecap="round"/>
+    <path d="M226,266 Q256,304 286,266" stroke="#FFFFFF" stroke-width="2"
+          fill="none" stroke-linecap="round" opacity=".9"/>
+    <path d="M220,258 L258,266 L234,316 L206,284 Z" fill="url(#whiteG)"/>
+    <path d="M292,258 L254,266 L278,316 L306,284 Z" fill="url(#whiteG)"/>
+    <path d="M292,258 L254,266 L278,316 L306,284 Z" fill="#9FB0BE" opacity=".30"/>
+  </g>
+
+  <g id="bag" data-part="tail" data-origin="30% 0%">
+    <rect x="288" y="398" width="54" height="46" rx="10" fill="url(#strapG)"/>
+    <path d="M288,410 L342,410" stroke="#FFFFFF" stroke-width="2.5" opacity=".16"/>
+    <rect x="304" y="416" width="20" height="6" rx="3" fill="#59606D"/>
+    <ellipse cx="300" cy="404" rx="16" ry="7" fill="#4B5260" opacity=".45"
+             filter="url(#soft4)"/>
+  </g>
+  <g id="strap">
+    <path d="M208,266 L306,428" stroke="url(#strapG)" stroke-width="12"
+          stroke-linecap="round"/>
+    <path d="M206,268 L304,430" stroke="#FFFFFF" stroke-width="2.5" opacity=".18"/>
+  </g>
+
+  <g>
+    <path d="M232,206 L280,206 L284,276 L228,276 Z" fill="#A96A44"/>
+    <path d="M236,206 L276,206 L279,262 L233,262 Z" fill="url(#limbG)"/>
+    <path d="M228,246 Q256,268 284,246 L284,276 L228,276 Z" fill="#8A5232"
+          opacity=".55" filter="url(#soft4)"/>
+  </g>
+
+  <g id="face" data-origin="50% 96%">
+    <g transform="translate(0,-16) translate(256,272) scale(1.05) translate(-256,-272)">
+      <!-- ears -->
+      <ellipse cx="162" cy="194" rx="17" ry="23" fill="url(#limbG)"/>
+      <ellipse cx="350" cy="194" rx="17" ry="23" fill="url(#limbG)"/>
+      <path d="M160,188 C167,192 168,202 162,206" stroke="#8A5232" stroke-width="4"
+            fill="none" opacity=".55" stroke-linecap="round"/>
+      <path d="M352,188 C345,192 344,202 350,206" stroke="#8A5232" stroke-width="4"
+            fill="none" opacity=".55" stroke-linecap="round"/>
+
+      <!-- head -->
+      <ellipse cx="256" cy="178" rx="94" ry="92" fill="url(#skinG)"/>
+      <g clip-path="url(#faceClip)">
+        <!-- core shadow bottom-right, rim light right edge -->
+        <ellipse cx="312" cy="226" rx="78" ry="74" fill="#A96A44" opacity=".42"
+                 filter="url(#soft14)"/>
+        <path d="M334,118 C354,150 354,206 332,244 C352,206 352,152 334,118 Z"
+              fill="#FFD9BC" opacity=".55" filter="url(#soft4)"/>
+        <ellipse cx="214" cy="146" rx="48" ry="34" fill="#FFD2AE" opacity=".35"
+                 filter="url(#soft)"/>
+      </g>
+
+      <!-- beard: a band along the jaw, mouth area left clear -->
+      <path d="M170,192
+               C174,242 206,273 256,273
+               C306,273 338,242 342,192
+               C336,222 320,238 300,246
+               C286,252 274,254 256,254
+               C238,254 226,252 212,246
+               C192,238 176,222 170,192 Z" fill="url(#beardG)"/>
+      <path d="M194,228 C204,250 224,264 252,266 C234,258 212,246 200,228 Z"
+            fill="#5C5069" opacity=".35" filter="url(#soft4)"/>
+      <!-- moustache -->
+      <path d="M224,216 Q256,205 288,216 Q275,229 256,225 Q237,229 224,216 Z"
+            fill="url(#beardG)"/>
+
+      <!-- cheeks -->
+      <ellipse cx="192" cy="212" rx="22" ry="13" fill="#D4705A"
+               opacity="0.3" filter="url(#soft4)"/>
+      <ellipse cx="320" cy="212" rx="22" ry="13" fill="#D4705A"
+               opacity="0.3" filter="url(#soft4)"/>
+
+      <g id="eyes">
+        <g id="eye-left">
+          <ellipse cx="222" cy="190" rx="24" ry="25.5" fill="url(#scleraG)"/>
+          <ellipse cx="222" cy="180" rx="21" ry="12" fill="#8E7F74"
+                   opacity=".30" filter="url(#soft4)"/>
+          <g transform="translate(222,190) scale(1.8)">
+            <g class="pupil">
+              <circle cx="0" cy="0" r="8.33" fill="url(#irisG)"/>
+              <circle cx="0" cy="0" r="4.33" fill="#120A05"/>
+              <ellipse cx="-2.83"
+                       cy="-3.17"
+                       rx="3.00"
+                       ry="2.50"
+                       fill="#FFFFFF" opacity=".95"/>
+              <circle cx="2.67"
+                      cy="3.33"
+                      r="1.33"
+                      fill="#FFFFFF" opacity=".55"/>
+              <path d="M-5.00,3.75
+                       a5.17,5.17
+                       0 0 0 10.00,0" fill="#C98A55" opacity=".45"/>
+            </g>
+          </g>
+          <!-- lash line -->
+          <path d="M199,175 a24,25.5 0 0 1 46,0"
+                stroke="#1B1520" stroke-width="4" fill="none" opacity=".55"
+                stroke-linecap="round"/>
+        </g>
+        <g id="eye-right">
+          <ellipse cx="290" cy="190" rx="24" ry="25.5" fill="url(#scleraG)"/>
+          <ellipse cx="290" cy="180" rx="21" ry="12" fill="#8E7F74"
+                   opacity=".30" filter="url(#soft4)"/>
+          <g transform="translate(290,190) scale(1.8)">
+            <g class="pupil">
+              <circle cx="0" cy="0" r="8.33" fill="url(#irisG)"/>
+              <circle cx="0" cy="0" r="4.33" fill="#120A05"/>
+              <ellipse cx="-2.83"
+                       cy="-3.17"
+                       rx="3.00"
+                       ry="2.50"
+                       fill="#FFFFFF" opacity=".95"/>
+              <circle cx="2.67"
+                      cy="3.33"
+                      r="1.33"
+                      fill="#FFFFFF" opacity=".55"/>
+              <path d="M-5.00,3.75
+                       a5.17,5.17
+                       0 0 0 10.00,0" fill="#C98A55" opacity=".45"/>
+            </g>
+          </g>
+          <!-- lash line -->
+          <path d="M267,175 a24,25.5 0 0 1 46,0"
+                stroke="#1B1520" stroke-width="4" fill="none" opacity=".55"
+                stroke-linecap="round"/>
+        </g>
+      </g>
+
+      <!-- nose -->
+      <ellipse cx="256" cy="212" rx="15" ry="12" fill="#CE8C62"/>
+      <ellipse cx="256" cy="215" rx="15" ry="10" fill="#A96A44" opacity=".45"
+               filter="url(#soft4)"/>
+      <ellipse cx="252" cy="207" rx="7" ry="5" fill="#FFD9BC" opacity=".75"/>
+
+      <g id="mouth" data-origin="50% 0%">
+        <path d="M226,222 Q256,260 286,222 Q256,234 226,222 Z" fill="#4A1F1E"/>
+        <path d="M231,224 Q256,233 281,224 Q256,241 231,224 Z" fill="#FFFBF4"/>
+        <path d="M240,248 Q256,255 272,248 Q256,253 240,248 Z" fill="#C9675A" opacity=".85"/>
+        <path d="M226,222 Q256,233 286,222" stroke="#B5614F" stroke-width="3.5"
+              fill="none" opacity=".5" stroke-linecap="round"/></g>
+      <!-- glasses -->
+      <g>
+        <ellipse cx="256" cy="226" rx="86" ry="16" fill="#8A5232" opacity=".22"
+                 filter="url(#soft4)"/>
+        <rect x="184" y="160" width="78" height="60" rx="26" fill="url(#lensG)"
+              stroke="url(#frameG)" stroke-width="6"/>
+        <rect x="250" y="160" width="78" height="60" rx="26" fill="url(#lensG)"
+              stroke="url(#frameG)" stroke-width="6"/>
+        <path d="M248,174 L264,174" stroke="url(#frameG)" stroke-width="6"
+              stroke-linecap="round"/>
+        <path d="M184,178 L164,186" stroke="url(#frameG)" stroke-width="6"
+              stroke-linecap="round"/>
+        <path d="M328,178 L348,186" stroke="url(#frameG)" stroke-width="6"
+              stroke-linecap="round"/>
+        <path d="M196,176 Q208,166 224,167" stroke="#FFFFFF" stroke-width="6"
+              fill="none" stroke-linecap="round" opacity=".7"/>
+        <path d="M262,176 Q274,166 290,167" stroke="#FFFFFF" stroke-width="6"
+              fill="none" stroke-linecap="round" opacity=".7"/>
+      </g>
+
+    <!-- hair under the brim -->
+    <path d="M170,126 C179,150 183,172 181,188 L167,177 C163,158 164,140 170,126 Z"
+          fill="url(#hairG)"/>
+    <path d="M342,126 C333,150 329,172 331,188 L345,177 C349,158 348,140 342,126 Z"
+          fill="url(#hairG)"/>
+    <g id="hat">
+      <path d="M172,118 C168,84 200,56 256,56 C312,56 344,84 340,118 Z" fill="url(#hatG)"/>
+      <path d="M194,92 C208,64 234,52 262,54 C234,64 208,82 198,106 Z"
+            fill="#4E4E5C" opacity=".40" filter="url(#soft4)"/>
+      <path d="M174,104 C200,117 228,121 256,121 C284,121 312,117 338,104
+               L340,118 L172,118 Z" fill="#0A0A0F" opacity=".75"/>
+      <ellipse cx="256" cy="114" rx="119" ry="23" fill="url(#hatG)"/>
+      <ellipse cx="214" cy="106" rx="54" ry="11" fill="#55556A" opacity=".35"
+               filter="url(#soft4)"/>
+      <path d="M137,116 C145,144 192,158 256,158 C320,158 367,144 375,116
+               C344,134 304,142 256,142 C208,142 168,134 137,116 Z" fill="url(#brimG)"/>
+      <path d="M158,124 C196,146 230,152 256,152" stroke="#4A4A5A" stroke-width="4"
+            fill="none" opacity=".35"/>
+    </g>
+    <!-- brim shadow cast on the face -->
+    <g clip-path="url(#faceClip)">
+      <path d="M150,122 C196,152 320,152 362,122 L362,158 L150,158 Z"
+            fill="#8A5232" opacity=".30" filter="url(#soft)"/>
+    </g>
+    </g>
+  </g>
+
+</svg>

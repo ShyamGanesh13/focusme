@@ -53,5 +53,5 @@ fn main() {
             commands::reset_character,
         ])
         .run(tauri::generate_context!())
-        .expect("error while running DeskPal");
+        .expect("error while running FocusMe");
 }

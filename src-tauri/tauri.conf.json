@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "DeskPal",
+  "productName": "FocusMe",
   "version": "0.1.0",
   "identifier": "com.shyamganesh.deskpal",
   "build": {
@@ -13,7 +13,7 @@
       {
         "label": "pet",
         "url": "pet.html",
-        "title": "DeskPal",
+        "title": "FocusMe",
         "width": 900,
         "height": 600,
         "transparent": true,

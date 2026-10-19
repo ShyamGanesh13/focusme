@@ -221,6 +221,25 @@ fn run_command(app: &AppHandle, state: &AppState, cmd: Command) -> Answer {
             let _ = app.emit("session-stopped", ());
             Answer::command(if was { "Focus session stopped." } else { "No focus session was running." })
         }
+        Command::Water { on, minutes } => {
+            let every = {
+                let mut cfg = state.config.lock().unwrap();
+                cfg.water.enabled = on;
+                if let Some(m) = minutes {
+                    cfg.water.every_minutes = m;
+                }
+                state.save_config(&cfg);
+                cfg.water.every_minutes
+            };
+            // Count the interval from now, so the first nudge isn't immediate.
+            state.rt.lock().unwrap().last_water = Local::now();
+            let _ = app.emit("config-changed", state.config.lock().unwrap().clone());
+            if on {
+                Answer::command(&format!("I'll remind you to drink water every {every} min. (/water off to stop.)"))
+            } else {
+                Answer::command("Water reminders off.")
+            }
+        }
         Command::Remind(rest) => remind(app, state, &rest),
         Command::Note(rest) => {
             if rest.is_empty() {

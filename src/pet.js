@@ -550,10 +550,15 @@ async function mountCharacter() {
 }
 
 await mountCharacter();
-x = clamp(window.innerWidth * 0.7, 0, maxX());
-lift = window.innerHeight * 0.35; // arrive by dropping in
-mode = "fall";
-vy = 0;
+// Start grounded at centre so the pet is exactly where you'd look, just
+// above the Dock. (The drop-in entrance is nice but can park it mid-screen
+// if the window is still resizing to the work area on first paint.)
+x = clamp((window.innerWidth - W) / 2, 0, maxX());
+lift = 0;
+mode = "idle";
+setBreathe(true);
+place();
+log("pet mounted", { W, H, x, innerW: window.innerWidth, innerH: window.innerHeight });
 requestAnimationFrame(frame);
 setTimeout(() => {
   const name = (cfg.pet.userName || "").trim();
