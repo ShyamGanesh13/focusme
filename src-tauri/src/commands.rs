@@ -1,7 +1,7 @@
 //! Everything the two webviews can call.
 
 use crate::ask::{self, Answer, Command, Intent, Shape};
-use crate::state::{next_id, stamp, AppState, Config, Note, Rect, Reminder};
+use crate::state::{next_id, stamp, AppState, Config, Note, Rect, Reminder, Routine};
 use crate::{overlay, sys, weather, when};
 use chrono::{Duration, Local};
 use serde::Serialize;
@@ -20,6 +20,11 @@ pub fn get_config(state: State<AppState>) -> Config {
 pub fn save_config(app: AppHandle, state: State<AppState>, cfg: Config) {
     let mut cfg = cfg;
     for r in cfg.reminders.iter_mut() {
+        if r.id == 0 {
+            r.id = next_id();
+        }
+    }
+    for r in cfg.routines.iter_mut() {
         if r.id == 0 {
             r.id = next_id();
         }
@@ -109,8 +114,74 @@ pub fn begin_session(app: &AppHandle, state: &AppState, minutes: u32) {
         let mut rt = state.rt.lock().unwrap();
         rt.session_end = Some(Local::now() + Duration::minutes(minutes as i64));
         rt.session_minutes = minutes;
+        rt.session_paused = None;
     }
     let _ = app.emit("session-started", minutes);
+}
+
+#[tauri::command]
+pub fn pause_session(app: AppHandle, state: State<AppState>) {
+    {
+        let mut rt = state.rt.lock().unwrap();
+        if let Some(end) = rt.session_end.take() {
+            rt.session_paused = Some((end - Local::now()).num_seconds().max(0));
+        }
+    }
+    let _ = app.emit("session-paused", ());
+}
+
+#[tauri::command]
+pub fn resume_session(app: AppHandle, state: State<AppState>) {
+    {
+        let mut rt = state.rt.lock().unwrap();
+        if let Some(rem) = rt.session_paused.take() {
+            rt.session_end = Some(Local::now() + Duration::seconds(rem.max(1)));
+        }
+    }
+    let _ = app.emit("session-resumed", ());
+}
+
+/// Push the next water nudge out by `minutes` from now.
+#[tauri::command]
+pub fn snooze_water(state: State<AppState>, minutes: i64) {
+    let every = state.config.lock().unwrap().water.every_minutes as i64;
+    let target = every * 60;
+    // next fire = now + minutes  ⇒  last_water = now + minutes*60 - target
+    state.rt.lock().unwrap().last_water = Local::now() + Duration::seconds(minutes * 60 - target);
+}
+
+/// Push one routine's next nudge out by `minutes` from now.
+#[tauri::command]
+pub fn snooze_routine(state: State<AppState>, id: u64, minutes: i64) {
+    let target = state
+        .config
+        .lock()
+        .unwrap()
+        .routines
+        .iter()
+        .find(|r| r.id == id)
+        .map(|r| r.every_minutes as i64 * 60)
+        .unwrap_or(0);
+    state
+        .rt
+        .lock()
+        .unwrap()
+        .routine_last
+        .insert(id, Local::now() + Duration::seconds(minutes * 60 - target));
+}
+
+/// Turn one routine on or off (used by the "Stop" button on its nudge).
+#[tauri::command]
+pub fn set_routine_enabled(app: AppHandle, state: State<AppState>, id: u64, enabled: bool) {
+    let cfg = {
+        let mut cfg = state.config.lock().unwrap();
+        if let Some(r) = cfg.routines.iter_mut().find(|r| r.id == id) {
+            r.enabled = enabled;
+        }
+        state.save_config(&cfg);
+        cfg.clone()
+    };
+    let _ = app.emit("config-changed", cfg);
 }
 
 #[tauri::command]
@@ -121,7 +192,11 @@ pub fn start_session(app: AppHandle, state: State<AppState>, minutes: Option<u32
 
 #[tauri::command]
 pub fn stop_session(app: AppHandle, state: State<AppState>) {
-    state.rt.lock().unwrap().session_end = None;
+    {
+        let mut rt = state.rt.lock().unwrap();
+        rt.session_end = None;
+        rt.session_paused = None;
+    }
     let _ = app.emit("session-stopped", ());
 }
 
@@ -231,6 +306,7 @@ fn run_command(app: &AppHandle, state: &AppState, cmd: Command) -> Answer {
                 state.save_config(&cfg);
                 cfg.water.every_minutes
             };
+            eprintln!("[focusme/water] command: on={on} minutes={minutes:?} -> every {every} min");
             // Count the interval from now, so the first nudge isn't immediate.
             state.rt.lock().unwrap().last_water = Local::now();
             let _ = app.emit("config-changed", state.config.lock().unwrap().clone());
@@ -240,6 +316,7 @@ fn run_command(app: &AppHandle, state: &AppState, cmd: Command) -> Answer {
                 Answer::command("Water reminders off.")
             }
         }
+        Command::Every { minutes, text } => add_routine(app, state, minutes, &text),
         Command::Remind(rest) => remind(app, state, &rest),
         Command::Note(rest) => {
             if rest.is_empty() {
@@ -280,6 +357,44 @@ fn remind(app: &AppHandle, state: &AppState, rest: &str) -> Answer {
     }
 }
 
+/// Human interval, e.g. 120 -> "2 h", 90 -> "1 h 30 min", 20 -> "20 min".
+fn human_every(mins: u32) -> String {
+    let (h, m) = (mins / 60, mins % 60);
+    match (h, m) {
+        (0, m) => format!("{m} min"),
+        (h, 0) => format!("{h} h"),
+        (h, m) => format!("{h} h {m} min"),
+    }
+}
+
+fn add_routine(app: &AppHandle, state: &AppState, minutes: u32, text: &str) -> Answer {
+    let text = text.trim();
+    if minutes == 0 {
+        return Answer::error("How often should I nudge you?", vec!["Like: /every 2h stand and stretch".into()]);
+    }
+    if text.is_empty() {
+        return Answer::error("What's the routine?", vec!["Like: /every 120 stand and stretch".into()]);
+    }
+    let id = next_id();
+    let cfg = {
+        let mut cfg = state.config.lock().unwrap();
+        cfg.routines.push(Routine {
+            id,
+            label: text.to_string(),
+            every_minutes: minutes,
+            enabled: true,
+            from: String::new(),
+            to: String::new(),
+        });
+        state.save_config(&cfg);
+        cfg.clone()
+    };
+    // Start the clock now, so the first nudge is one full interval away.
+    state.rt.lock().unwrap().routine_last.insert(id, Local::now());
+    let _ = app.emit("config-changed", cfg);
+    Answer::command(&format!("Done — every {}, I'll nudge you: {text}", human_every(minutes)))
+}
+
 fn answer_question(state: &AppState, q: &str) -> Answer {
     match ask::intent(q) {
         Intent::Greeting => {
@@ -316,13 +431,20 @@ fn answer_question(state: &AppState, q: &str) -> Answer {
             let cfg = state.config.lock().unwrap();
             let mut up: Vec<&Reminder> = cfg.reminders.iter().filter(|r| !r.done).collect();
             up.sort_by(|a, b| a.at.cmp(&b.at));
-            if up.is_empty() {
-                Answer::answer("No reminders coming up.", vec!["Add one: /remind stretch in 30 min".into()])
-            } else {
+            let routines: Vec<&Routine> = cfg.routines.iter().filter(|r| r.enabled).collect();
+            let mut lines: Vec<String> =
+                up.iter().take(5).map(|r| format!("{} — {}", r.at.replace('T', " "), r.text)).collect();
+            for r in &routines {
+                lines.push(format!("every {} — {}", human_every(r.every_minutes), r.label));
+            }
+            if lines.is_empty() {
                 Answer::answer(
-                    &format!("{} reminder{} coming up", up.len(), if up.len() == 1 { "" } else { "s" }),
-                    up.iter().take(5).map(|r| format!("{} — {}", r.at.replace('T', " "), r.text)).collect(),
+                    "Nothing scheduled.",
+                    vec!["/remind stretch in 30 min  ·  /every 2h stand and stretch".into()],
                 )
+            } else {
+                let n = up.len() + routines.len();
+                Answer::answer(&format!("{n} coming up"), lines)
             }
         }
         Intent::Clock => {

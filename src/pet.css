@@ -87,6 +87,13 @@ html, body {
 #bubble.alert { background: #fff7e6; }
 #bubble.alert::after { border-top-color: #fff7e6; }
 #bubble small { display: block; color: var(--muted); font-weight: 400; margin-top: 2px; }
+.bub-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.bub-actions button {
+  border: 0; border-radius: 8px; padding: 4px 10px; cursor: pointer;
+  background: var(--accent); color: #fff; font: 600 12px var(--font); white-space: nowrap;
+}
+.bub-actions button:nth-child(n+2) { background: var(--chip); color: var(--ink); }
+.bub-actions button:hover { filter: brightness(1.05); }
 @keyframes pop { from { transform: translateX(-50%) scale(.8); opacity: 0; } }
 
 #badge {
@@ -96,7 +103,18 @@ html, body {
   font: 600 11px/1.6 ui-monospace, "SF Mono", Menlo, monospace;
   pointer-events: none;
 }
+#badge.paused { background: rgba(180, 120, 20, .92); }
 #bubble:not([hidden]) ~ #badge { display: none; }
+
+/* clear-chat button above the log */
+#chatTop { display: flex; justify-content: flex-end; }
+#chatClear {
+  border: 0; background: rgba(255, 255, 255, .85); color: var(--ink);
+  border-radius: 999px; padding: 3px 10px; cursor: pointer;
+  font: 500 11.5px var(--font); box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
+}
+#chatClear[hidden] { display: none; }
+#chatClear:hover { background: #fff; }
 
 /* ---------------------------------------------------------------- effects */
 #fx { position: fixed; inset: 0; pointer-events: none; }

@@ -43,6 +43,7 @@ pub fn fit_to_work_area(app: &AppHandle) {
 pub fn pin_above_everything(app: &AppHandle) {
     use objc::runtime::{Class, Object};
     use objc::{msg_send, sel, sel_impl};
+    // libobjc; lets us re-class the live NSWindow into an NSPanel.
     extern "C" {
         fn object_setClass(obj: *mut Object, cls: *const Class) -> *const Class;
     }
@@ -54,11 +55,19 @@ pub fn pin_above_everything(app: &AppHandle) {
         return;
     }
 
+    // NSStatusWindowLevel = 25: above ordinary (0) and floating (3) windows.
     const STATUS_LEVEL: isize = 25;
+    // canJoinAllSpaces (1<<0) | stationary (1<<4) | fullScreenAuxiliary (1<<8):
+    // appear on every Space, including another app's full-screen Space.
     const BEHAVIOR: usize = (1 << 0) | (1 << 4) | (1 << 8);
-    const NONACTIVATING_PANEL: usize = 1 << 7;
+    const NONACTIVATING_PANEL: usize = 1 << 7; // NSWindowStyleMaskNonactivatingPanel
 
     unsafe {
+        // Turn the window into a non-activating NSPanel once. A plain NSWindow,
+        // however high its level, is still confined to its own Space; a
+        // non-activating panel with the behavior below is the one kind of
+        // window macOS lets hover over other apps' full-screen Spaces, and it
+        // does so without stealing focus from the app underneath.
         if let Some(panel) = Class::get("NSPanel") {
             let pcls: *const Class = panel;
             let is_panel: bool = msg_send![ns, isKindOfClass: pcls];
@@ -73,8 +82,6 @@ pub fn pin_above_everything(app: &AppHandle) {
         let _: () = msg_send![ns, setLevel: STATUS_LEVEL];
         let _: () = msg_send![ns, setCollectionBehavior: BEHAVIOR];
         let _: () = msg_send![ns, orderFrontRegardless];
-        let lvl: isize = msg_send![ns, level];
-        eprintln!("[focusme/pin] level {lvl}, panel overlay on");
     }
 }
 
@@ -100,12 +107,18 @@ pub fn setup(app: &App) -> tauri::Result<()> {
     pin_above_everything(&handle);
     // The monitor's work area can read as empty for the first instant after
     // launch, which would leave the window at its default 900x600. Re-fit and
-    // re-pin the level a couple of times shortly after show.
+    // re-pin a couple of times shortly after show. The native level/collection
+    // calls touch AppKit, which is main-thread only, so the work is dispatched
+    // back onto the main thread rather than run on this timer thread.
     {
         let h = handle.clone();
         std::thread::spawn(move || {
             let mut i = 0u32;
             loop {
+                // Fit a few times early (monitor size can read empty at first),
+                // then re-assert the window level forever every 2s — some apps
+                // reset other apps' always-on-top level when they activate, and
+                // this heals it so the pet keeps floating above them.
                 std::thread::sleep(Duration::from_millis(if i < 3 { 250 } else { 2000 }));
                 let first = i < 3;
                 i = i.saturating_add(1);

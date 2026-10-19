@@ -98,6 +98,20 @@ code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; background: rgba(12
 .item input[type="text"] { flex: 1; min-width: 0; }
 .empty { color: var(--muted); padding: 18px; text-align: center; border: 1px dashed var(--line); border-radius: 10px; }
 
+/* repeating routines — two stacked rows per item */
+.item.routine { flex-direction: column; align-items: stretch; gap: 8px; }
+.item.routine .rtop { display: flex; align-items: center; gap: 10px; }
+.item.routine .rtop input[type="checkbox"] { flex: 0 0 auto; margin: 0; }
+.item.routine .rtop input[type="text"] { flex: 1 1 auto; min-width: 0; }
+.item.routine .rbot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-left: 26px; }
+.item.routine .rbot input[type="number"] { flex: 0 0 60px; width: 60px; }
+.item.routine .rbot input[type="time"] { flex: 0 0 auto; }
+.item.routine .rbot .lbl { color: var(--muted); font-size: 12px; }
+.item.routine .rbot .unit { color: var(--muted); font-size: 12px; }
+.item.routine .rbot .dot { color: var(--line); margin: 0 4px; }
+.item.routine.off { opacity: .55; }
+h2.sub { font-size: 14px; font-weight: 600; margin: 22px 0 2px; }
+
 .charbox { display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: center; }
 #charPreview {
   width: 200px; height: 200px; border-radius: 14px; padding: 18px;

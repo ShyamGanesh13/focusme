@@ -158,6 +158,9 @@ pub enum Command {
     Note(String),
     /// Repeating water reminder: on/off, and how often (minutes).
     Water { on: bool, minutes: Option<u32> },
+    /// A custom repeating routine: every `minutes`, nudge with `text`.
+    /// `minutes == 0` means the interval couldn't be parsed.
+    Every { minutes: u32, text: String },
     Hide,
     Settings,
     Quit,
@@ -166,10 +169,39 @@ pub enum Command {
     Unknown(String),
 }
 
-/// First run of digits anywhere in the text, e.g. "5mins" / "5 min" -> 5.
+/// First run of digits anywhere in the text, e.g. "5mins" / "5 min" / "in 5" -> 5.
 fn first_number(s: &str) -> Option<u32> {
     let digits: String = s.chars().skip_while(|c| !c.is_ascii_digit()).take_while(|c| c.is_ascii_digit()).collect();
     digits.parse::<u32>().ok()
+}
+
+fn to_minutes(n: u32, unit: &str) -> u32 {
+    if unit.to_lowercase().starts_with('h') { n.saturating_mul(60) } else { n }
+}
+
+/// Pull an interval + label out of a `/every` body. Understands a leading
+/// number ("120 stand", "2h stretch") or an inline "every N<unit>" phrase
+/// ("stand and work for 20 mins every 2hrs"). Returns (minutes, label).
+fn parse_every(rest: &str) -> Option<(u32, String)> {
+    static EVERY: OnceLock<Regex> = OnceLock::new();
+    static LEAD: OnceLock<Regex> = OnceLock::new();
+    let every = EVERY.get_or_init(|| Regex::new(r"(?i)\bevery\s+(\d+)\s*(hours?|hrs?|h|minutes?|mins?|m)?\b").unwrap());
+    let lead = LEAD.get_or_init(|| Regex::new(r"(?i)^\s*(\d+)\s*(hours?|hrs?|h|minutes?|mins?|m)?\b").unwrap());
+
+    if let Some(c) = every.captures(rest) {
+        let n: u32 = c[1].parse().ok()?;
+        let unit = c.get(2).map(|m| m.as_str()).unwrap_or("m");
+        let m = c.get(0).unwrap();
+        let label = format!("{} {}", rest[..m.start()].trim(), rest[m.end()..].trim());
+        return Some((to_minutes(n, unit).clamp(1, 1440), label.trim().to_string()));
+    }
+    if let Some(c) = lead.captures(rest) {
+        let n: u32 = c[1].parse().ok()?;
+        let unit = c.get(2).map(|m| m.as_str()).unwrap_or("m");
+        let m = c.get(0).unwrap();
+        return Some((to_minutes(n, unit).clamp(1, 1440), rest[m.end()..].trim().to_string()));
+    }
+    None
 }
 
 pub fn command(s: &str) -> Command {
@@ -191,6 +223,10 @@ pub fn command(s: &str) -> Command {
                 Command::Water { on: true, minutes: first_number(rest).map(|n| n.clamp(1, 480)) }
             }
         }
+        "every" | "routine" | "repeat" => match parse_every(rest) {
+            Some((minutes, text)) => Command::Every { minutes, text },
+            None => Command::Every { minutes: 0, text: rest.to_string() },
+        },
         "remind" | "reminder" | "r" => Command::Remind(rest.to_string()),
         "note" | "n" => Command::Note(rest.to_string()),
         "hide" => Command::Hide,
@@ -210,6 +246,7 @@ pub fn help() -> Answer {
             "weather?  ·  weather in Chennai?".into(),
             "timer?  notes?  reminders?  time?".into(),
             "/timer 25  ·  /stop  ·  /remind call Kavi at 5pm".into(),
+            "/every 2h stand and stretch  ·  a repeating nudge".into(),
             "/water 10  ·  a drink-water nudge every 10 min  (/water off)".into(),
             "/sleep  ·  /hide  ·  /settings  ·  /quit".into(),
             "Anything else you type is saved as a note.".into(),
@@ -257,8 +294,26 @@ mod tests {
         assert_eq!(command("/remind call Kavi at 5pm"), Command::Remind("call Kavi at 5pm".into()));
         assert_eq!(command("/QUIT"), Command::Quit);
         assert_eq!(command("/water 10"), Command::Water { on: true, minutes: Some(10) });
+        assert_eq!(command("/water 5mins"), Command::Water { on: true, minutes: Some(5) });
         assert_eq!(command("/water"), Command::Water { on: true, minutes: None });
         assert_eq!(command("/water off"), Command::Water { on: false, minutes: None });
+        assert_eq!(command("/timer 25mins"), Command::Timer(Some(25)));
         assert_eq!(command("/dance"), Command::Unknown("dance".into()));
+    }
+
+    #[test]
+    fn every() {
+        assert_eq!(command("/every 120 stand and stretch"), Command::Every { minutes: 120, text: "stand and stretch".into() });
+        assert_eq!(command("/every 2h stand and stretch"), Command::Every { minutes: 120, text: "stand and stretch".into() });
+        assert_eq!(command("/every 90m take a walk"), Command::Every { minutes: 90, text: "take a walk".into() });
+        assert_eq!(command("/every 30 drink tea"), Command::Every { minutes: 30, text: "drink tea".into() });
+        // inline "every N<unit>" phrase, as a person would naturally type it
+        assert_eq!(
+            command("/every stand and work for 20 mins every 2hrs"),
+            Command::Every { minutes: 120, text: "stand and work for 20 mins".into() }
+        );
+        // no interval at all
+        assert_eq!(command("/every stand up"), Command::Every { minutes: 0, text: "stand up".into() });
+        assert_eq!(command("/repeat 45min hydrate"), Command::Every { minutes: 45, text: "hydrate".into() });
     }
 }

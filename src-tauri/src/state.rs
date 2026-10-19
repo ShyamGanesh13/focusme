@@ -86,6 +86,30 @@ pub struct Reminder {
     pub done: bool,
 }
 
+fn default_true() -> bool {
+    true
+}
+
+/// A repeating nudge: "stand and stretch", every N minutes, optionally only
+/// inside an active window. The one-off cousin is [`Reminder`].
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Routine {
+    #[serde(default)]
+    pub id: u64,
+    /// What the notification says.
+    pub label: String,
+    /// How often, in minutes.
+    pub every_minutes: u32,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// Optional active window ("HH:MM"); both empty = all day.
+    #[serde(default)]
+    pub from: String,
+    #[serde(default)]
+    pub to: String,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Config {
@@ -95,6 +119,7 @@ pub struct Config {
     pub bedtime: BedtimeCfg,
     pub weather: WeatherCfg,
     pub reminders: Vec<Reminder>,
+    pub routines: Vec<Routine>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
@@ -131,8 +156,13 @@ pub struct HitState {
 pub struct Runtime {
     pub session_end: Option<DateTime<Local>>,
     pub session_minutes: u32,
+    /// Seconds remaining while a focus session is paused.
+    pub session_paused: Option<i64>,
     pub last_water: DateTime<Local>,
     pub bedtime_fired: Option<String>,
+    /// When each routine last fired, keyed by routine id. A routine starts
+    /// counting from the moment it's first seen, so it never fires instantly.
+    pub routine_last: std::collections::HashMap<u64, DateTime<Local>>,
 }
 
 pub struct AppState {
@@ -191,6 +221,11 @@ impl AppState {
                 r.id = next_id();
             }
         }
+        for r in config.routines.iter_mut() {
+            if r.id == 0 {
+                r.id = next_id();
+            }
+        }
         let notes: Vec<Note> = read_json(&dir.join("notes.json"));
         Self {
             dir,
@@ -199,8 +234,10 @@ impl AppState {
             rt: Mutex::new(Runtime {
                 session_end: None,
                 session_minutes: 0,
+                session_paused: None,
                 last_water: Local::now(),
                 bedtime_fired: None,
+                routine_last: std::collections::HashMap::new(),
             }),
             hit: Mutex::new(HitState::default()),
         }

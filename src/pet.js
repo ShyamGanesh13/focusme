@@ -36,11 +36,19 @@ let lift = 0;         // px above the floor (the Dock line)
 let facing = 1;       // 1 = right, -1 = left
 let mode = "idle";    // idle | walk | sleep | drag | fall | chat
 let bob = 0, tilt = 0, phase = 0;
+let sx = 1, sy = 1;   // art squash/stretch while walking
 let vx = 0, vy = 0;
 
 const floorY = () => window.innerHeight;
 const maxX = () => Math.max(0, window.innerWidth - W);
 const petTop = () => floorY() - H - lift;
+
+// The pet lives in the bottom-right corner and only strolls within a small
+// zone there — a few steps, not the whole bar. Dragging can still take it
+// anywhere; it walks back into the zone when you let go.
+const EDGE_GAP = 16;
+const roamMax = () => Math.max(0, maxX() - EDGE_GAP);
+const roamMin = () => Math.max(0, roamMax() - 3.0 * W);
 
 function applySize() {
   const s = clamp(Number(cfg.pet.scale) || 1, 0.4, 3);
@@ -48,12 +56,18 @@ function applySize() {
   W = H * (char ? char.aspect : 1);
   petEl.style.width = W + "px";
   petEl.style.height = H + "px";
-  x = clamp(x, 0, maxX());
+  artEl.style.transformOrigin = "50% 100%"; // bounce/squash pivots on the feet
+  // keep it parked in the corner zone unless it's being handled
+  if (mode === "drag" || mode === "fall") {
+    x = clamp(x, 0, maxX());
+  } else {
+    x = clamp(x, roamMin(), roamMax());
+  }
 }
 
 function place() {
   petEl.style.transform = `translate(${x}px, ${petTop()}px)`;
-  artEl.style.transform = `translateY(${-bob}px) rotate(${tilt}deg) scaleX(${facing})`;
+  artEl.style.transform = `translateY(${-bob}px) rotate(${tilt}deg) scaleX(${facing * sx}) scaleY(${sy})`;
 }
 
 function setBreathe(on) {
@@ -67,7 +81,7 @@ let lastHit = "";
 function hitRects() {
   const pad = 6;
   const rects = [{ x: x - pad, y: petTop() - pad, w: W + pad * 2, h: H + pad * 2 }];
-  for (const el of [chatEl, menuEl, bubbleEl.classList.contains("clickable") ? bubbleEl : null]) {
+  for (const el of [chatEl, menuEl, badgeEl.hidden ? null : badgeEl, bubbleEl.classList.contains("clickable") ? bubbleEl : null]) {
     if (el && !el.hidden) {
       const r = el.getBoundingClientRect();
       rects.push({ x: r.left - pad, y: r.top - pad, w: r.width + pad * 2, h: r.height + pad * 2 });
@@ -127,14 +141,17 @@ function frame(now) {
     const dir = Math.sign(walkTarget - x);
     if (dir !== 0) facing = dir;
     x += dir * speed * dt;
-    phase += dt * 9 * clamp(Number(cfg.pet.speed) || 1, 0.3, 3);
-    bob = Math.abs(Math.sin(phase)) * 6 * (H / BASE_H);
-    tilt = Math.sin(phase) * 3;
-    char && char.swing(phase);
+    phase += dt * 8 * clamp(Number(cfg.pet.speed) || 1, 0.3, 3);
+    const step = Math.abs(Math.sin(phase));   // 0 at footfall, 1 mid-stride
+    bob = step * 7 * (H / BASE_H);             // bounce up each step
+    tilt = Math.sin(phase * 0.5) * 5;          // slow left/right waddle
+    sy = 1 - 0.05 * step;                      // stretch up as it rises
+    sx = 1 + 0.035 * step;
+    char && char.swing(phase);                 // (moves arms if the SVG has them)
     if (dir === 0 || (dir > 0 && x >= walkTarget) || (dir < 0 && x <= walkTarget)) {
       x = walkTarget;
       walkTarget = null;
-      bob = 0; tilt = 0;
+      bob = 0; tilt = 0; sx = 1; sy = 1;
       char && char.restArms();
       const done = onArrive; onArrive = null; done && done();
     }
@@ -151,6 +168,8 @@ function frame(now) {
   } else {
     bob *= 0.8;
     tilt *= 0.8;
+    sx += (1 - sx) * 0.2;
+    sy += (1 - sy) * 0.2;
   }
 
   place();
@@ -160,16 +179,36 @@ function frame(now) {
 
 // ------------------------------------------------------------ speech + effects
 let bubbleTimer = null;
-function say(text, { ms = 3800, small = "", alert = false, clickable = false } = {}) {
+// `actions`: [{label, act}] renders small buttons inside the bubble.
+function say(text, { ms = 3800, small = "", alert = false, clickable = false, force = false, actions = null } = {}) {
   char && char.talk(Math.min(1600, 400 + text.length * 30));
-  if (!chatEl.hidden) return; // the chat log shows it instead
+  // Normally the open chat shows messages instead of a bubble, but an alert
+  // (reminder / water / session) must show even while the chat is open.
+  if (!chatEl.hidden && !alert && !force && !actions) return;
   clearTimeout(bubbleTimer);
-  bubbleEl.textContent = text;
+  bubbleEl.textContent = "";
+  const line = document.createElement("div");
+  line.textContent = text;
+  bubbleEl.appendChild(line);
   if (small) { const s = document.createElement("small"); s.textContent = small; bubbleEl.appendChild(s); }
+  const hasBtns = actions && actions.length;
+  if (hasBtns) {
+    const row = document.createElement("div");
+    row.className = "bub-actions";
+    actions.forEach((a) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = a.label;
+      b.addEventListener("click", (e) => { e.stopPropagation(); try { a.act(); } catch (_) {} hush(); });
+      row.appendChild(b);
+    });
+    bubbleEl.appendChild(row);
+  }
   bubbleEl.classList.toggle("alert", alert);
-  bubbleEl.classList.toggle("clickable", clickable);
+  bubbleEl.classList.toggle("clickable", clickable || hasBtns);
   bubbleEl.hidden = false;
-  bubbleTimer = setTimeout(hush, ms);
+  clearTimeout(bubbleTimer);
+  if (ms) bubbleTimer = setTimeout(hush, ms);
   sendHit(true);
 }
 function hush() {
@@ -177,7 +216,8 @@ function hush() {
   bubbleEl.classList.remove("clickable", "alert");
   sendHit(true);
 }
-bubbleEl.addEventListener("click", hush);
+// Clicking the bubble dismisses it only when it has no action buttons.
+bubbleEl.addEventListener("click", () => { if (!bubbleEl.querySelector(".bub-actions")) hush(); });
 
 function spawn(kind, text) {
   const s = document.createElement("span");
@@ -220,14 +260,19 @@ async function brain() {
   mode = "idle";
   setBreathe(true);
   await pause(400, mine);
+  // If a drag left the pet outside its corner zone, amble back into it first.
+  if (x < roamMin() - 2 || x > roamMax() + 2) {
+    await walkTo(clamp(x, roamMin(), roamMax()), mine);
+    setBreathe(true);
+  }
   while (!stale(mine)) {
     if (shouldSleep()) { await doze(mine); continue; }
     const r = Math.random();
     if (cfg.pet.wander && r < 0.4) {
-      // mostly short strolls; now and then a long walk across the Dock
-      const far = Math.random() < 0.25;
-      const span = far ? maxX() : Math.min(maxX(), 260 * (H / BASE_H));
-      await walkTo(far ? rand(0, maxX()) : x + rand(-span, span), mine);
+      // a step or two within the bottom-right zone
+      const lo = roamMin(), hi = roamMax();
+      const step = Math.min(Math.max(0, hi - lo), 1.2 * W);
+      await walkTo(clamp(x + rand(-step, step), lo, hi), mine);
       setBreathe(true);
     } else if (r < 0.52) {
       char && char.tilt(rand(-9, 9));
@@ -374,6 +419,7 @@ function openChat() {
   setBreathe(true);
   positionChat();
   chatEl.hidden = false;
+  $("chatClear").hidden = chatLog.children.length === 0;
   reflect();
   invoke("focus_pet").catch(() => {});
   setTimeout(() => chatInput.focus(), 30);
@@ -387,6 +433,14 @@ function closeChat(resume = true) {
   if (resume) brain();
 }
 
+function clearChat() {
+  chatLog.textContent = "";
+  $("chatClear").hidden = true;
+  chatInput.focus();
+  sendHit(true);
+}
+$("chatClear").addEventListener("click", (e) => { e.stopPropagation(); clearChat(); });
+
 function addTurn(q, ans) {
   const p = document.createElement("p");
   p.className = "q";
@@ -397,6 +451,7 @@ function addTurn(q, ans) {
   chatLog.append(p, a);
   while (chatLog.children.length > 8) chatLog.firstChild.remove();
   chatLog.scrollTop = chatLog.scrollHeight;
+  $("chatClear").hidden = false;
   return (res) => {
     a.className = "a " + (res.kind || "answer");
     a.textContent = "";
@@ -487,39 +542,98 @@ document.addEventListener("pointerdown", (e) => {
 // ------------------------------------------------------------ events from Rust
 const fmt = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
+let sessionPaused = false;
+let sessionActive = false;
 listen("tick", ({ payload: p }) => {
   bedtime = !!p.bedtime;
-  if (p.sessionLeft != null) {
-    badgeEl.textContent = fmt(p.sessionLeft);
+  sessionPaused = !!p.sessionPaused;
+  sessionActive = p.sessionLeft != null;
+  if (sessionActive) {
+    badgeEl.textContent = (sessionPaused ? "❚❚ " : "") + fmt(p.sessionLeft);
+    badgeEl.classList.toggle("paused", sessionPaused);
     badgeEl.hidden = false;
   } else {
     badgeEl.hidden = true;
   }
+});
+// Click the countdown badge for quick focus controls.
+badgeEl.style.pointerEvents = "auto";
+badgeEl.style.cursor = "pointer";
+badgeEl.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!sessionActive) return;
+  say(sessionPaused ? "Focus paused" : "Focus running", {
+    ms: 0, alert: true,
+    actions: sessionPaused
+      ? [
+          { label: "Resume", act: () => invoke("resume_session") },
+          { label: "End", act: () => invoke("stop_session") },
+        ]
+      : [
+          { label: "Pause", act: () => invoke("pause_session") },
+          { label: "End", act: () => invoke("stop_session") },
+        ],
+  });
 });
 listen("session-started", ({ payload: m }) => {
   touched();
   say(`Focus time — ${m} min. I'll keep watch.`);
 });
 listen("session-stopped", () => { badgeEl.hidden = true; });
+listen("session-paused", () => say("Focus paused.", { ms: 2500 }));
+listen("session-resumed", () => say("Back to it.", { ms: 2000 }));
 listen("session-done", () => {
   badgeEl.hidden = true;
   if (cfg.session.chime) chime("done");
   forcedSleep = false;
   touched();
   pat();
-  setTimeout(() => say("Session done! Stand up and stretch for five.", { ms: 10000, alert: true }), 650);
+  setTimeout(() => say("Session done! Take a short break.", {
+    ms: 0, alert: true,
+    actions: [
+      { label: "Another " + (cfg.session.minutes || 25), act: () => invoke("start_session", {}) },
+      { label: "Done", act: () => {} },
+    ],
+  }), 650);
 });
 listen("reminder", ({ payload: r }) => {
   chime("remind");
   forcedSleep = false;
   touched();
   brain();
-  say(r.text, { ms: 120000, alert: true, clickable: true, small: "Reminder · click to dismiss" });
+  say(r.text, {
+    ms: 0, alert: true, small: "Reminder",
+    actions: [
+      { label: "Snooze 10m", act: () => invoke("ask", { text: `/remind ${r.text} in 10 min` }) },
+      { label: "Dismiss", act: () => {} },
+    ],
+  });
 });
 listen("water", () => {
   touched();
-  say("Time for a sip of water.", { ms: 8000 });
   char && char.wave(1);
+  say("Time for a sip of water 💧", {
+    ms: 0, alert: true,
+    actions: [
+      { label: "Done", act: () => {} },
+      { label: "Snooze 10m", act: () => invoke("snooze_water", { minutes: 10 }) },
+      { label: "Turn off", act: () => invoke("ask", { text: "/water off" }) },
+    ],
+  });
+});
+listen("routine", ({ payload: r }) => {
+  chime("remind");
+  forcedSleep = false;
+  touched();
+  brain();
+  say(r.label, {
+    ms: 0, alert: true, small: "Routine",
+    actions: [
+      { label: "Done", act: () => {} },
+      { label: "Snooze 10m", act: () => invoke("snooze_routine", { id: r.id, minutes: 10 }) },
+      { label: "Stop", act: () => invoke("set_routine_enabled", { id: r.id, enabled: false }) },
+    ],
+  });
 });
 listen("bedtime", () => {
   say("It's getting late. Goodnight!", { ms: 6000 });
@@ -553,7 +667,7 @@ await mountCharacter();
 // Start grounded at centre so the pet is exactly where you'd look, just
 // above the Dock. (The drop-in entrance is nice but can park it mid-screen
 // if the window is still resizing to the work area on first paint.)
-x = clamp((window.innerWidth - W) / 2, 0, maxX());
+x = roamMax(); // start tucked in the bottom-right
 lift = 0;
 mode = "idle";
 setBreathe(true);

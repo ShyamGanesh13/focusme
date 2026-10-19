@@ -50,6 +50,7 @@ function fill() {
   $("scaleOut").textContent = Number(cfg.pet.scale).toFixed(2) + "×";
   $("speedOut").textContent = Number(cfg.pet.speed).toFixed(2) + "×";
   renderReminders();
+  renderRoutines();
 }
 
 for (const [id, prop, , set] of binds) {
@@ -147,6 +148,61 @@ $("remAdd").addEventListener("click", () => {
   inputs.forEach((i) => { if (!i.value) i.focus(); });
 });
 
+// ------------------------------------------------------------ routines
+function renderRoutines() {
+  const list = $("routineList");
+  if (!list) return;
+  if (!cfg.routines) cfg.routines = [];
+  list.replaceChildren();
+  if (!cfg.routines.length) {
+    const e = document.createElement("div");
+    e.className = "empty";
+    e.textContent = "No routines yet.";
+    list.appendChild(e);
+    return;
+  }
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  for (const r of cfg.routines) {
+    const item = mk("div", "item routine" + (r.enabled === false ? " off" : ""));
+
+    // top row: on/off · label · delete
+    const top = mk("div", "rtop");
+    const on = mk("input");
+    on.type = "checkbox"; on.checked = r.enabled !== false; on.title = "Enable / disable";
+    on.addEventListener("change", () => { r.enabled = on.checked; item.classList.toggle("off", !on.checked); save(); });
+    const text = mk("input");
+    text.type = "text"; text.value = r.label || ""; text.placeholder = "Nudge me to… (e.g. stand and stretch)";
+    text.addEventListener("input", () => { r.label = text.value; save(); });
+    const del = mk("button", "x", "×"); del.title = "Delete";
+    del.addEventListener("click", () => { cfg.routines = cfg.routines.filter((x) => x !== r); save(); renderRoutines(); });
+    top.append(on, text, del);
+
+    // bottom row: every N min · active from–to
+    const bot = mk("div", "rbot");
+    const every = mk("input");
+    every.type = "number"; every.min = "1"; every.max = "1440"; every.title = "How often";
+    every.value = r.everyMinutes || 60;
+    every.addEventListener("input", () => { r.everyMinutes = num(every.value, 1, 1440, 60); save(); });
+    const from = mk("input"); from.type = "time"; from.value = r.from || ""; from.title = "Active from (blank = all day)";
+    from.addEventListener("change", () => { r.from = from.value; save(); });
+    const to = mk("input"); to.type = "time"; to.value = r.to || ""; to.title = "Active until (blank = all day)";
+    to.addEventListener("change", () => { r.to = to.value; save(); });
+    bot.append(mk("span", "lbl", "Every"), every, mk("span", "unit", "min"),
+               mk("span", "dot", "·"),
+               mk("span", "lbl", "Active"), from, mk("span", "unit", "–"), to);
+
+    item.append(top, bot);
+    list.appendChild(item);
+  }
+}
+$("routineAdd").addEventListener("click", () => {
+  if (!cfg.routines) cfg.routines = [];
+  cfg.routines.push({ id: 0, label: "", everyMinutes: 120, enabled: true, from: "", to: "" });
+  renderRoutines();
+  const inputs = $("routineList").querySelectorAll("input[type=text]");
+  inputs.forEach((i) => { if (!i.value) i.focus(); });
+});
+
 // ------------------------------------------------------------ notes
 async function renderNotes() {
   const notes = await invoke("list_notes");
@@ -195,7 +251,7 @@ $("quit").addEventListener("click", () => invoke("quit_app"));
 
 // Another window (or a /remind in the chat) changed the config.
 listen("config-changed", ({ payload }) => {
-  const editing = document.activeElement && document.activeElement.closest("#remList, input[type=text]");
+  const editing = document.activeElement && document.activeElement.closest("#remList, #routineList, input[type=text]");
   cfg = payload;
   if (!editing) fill();
 });
