@@ -39,23 +39,42 @@ pub fn fit_to_work_area(app: &AppHandle) {
 /// Space and alongside full-screen apps, which is the standard recipe for a
 /// desktop pet that has to sit on top of everything.
 #[cfg(target_os = "macos")]
+#[allow(unexpected_cfgs)]
 pub fn pin_above_everything(app: &AppHandle) {
-    use objc::runtime::Object;
+    use objc::runtime::{Class, Object};
     use objc::{msg_send, sel, sel_impl};
+    extern "C" {
+        fn object_setClass(obj: *mut Object, cls: *const Class) -> *const Class;
+    }
+
     let Some(win) = app.get_webview_window("pet") else { return };
     let Ok(ptr) = win.ns_window() else { return };
     let ns = ptr as *mut Object;
     if ns.is_null() {
         return;
     }
-    // NSStatusWindowLevel = 25: above ordinary (0) and floating (3) windows,
-    // below the menu bar.
+
     const STATUS_LEVEL: isize = 25;
-    // canJoinAllSpaces (1<<0) | stationary (1<<4) | fullScreenAuxiliary (1<<8)
     const BEHAVIOR: usize = (1 << 0) | (1 << 4) | (1 << 8);
+    const NONACTIVATING_PANEL: usize = 1 << 7;
+
     unsafe {
+        if let Some(panel) = Class::get("NSPanel") {
+            let pcls: *const Class = panel;
+            let is_panel: bool = msg_send![ns, isKindOfClass: pcls];
+            if !is_panel {
+                object_setClass(ns, pcls);
+                let mask: usize = msg_send![ns, styleMask];
+                let _: () = msg_send![ns, setStyleMask: mask | NONACTIVATING_PANEL];
+                let _: () = msg_send![ns, setFloatingPanel: true];
+                let _: () = msg_send![ns, setBecomesKeyOnlyIfNeeded: true];
+            }
+        }
         let _: () = msg_send![ns, setLevel: STATUS_LEVEL];
         let _: () = msg_send![ns, setCollectionBehavior: BEHAVIOR];
+        let _: () = msg_send![ns, orderFrontRegardless];
+        let lvl: isize = msg_send![ns, level];
+        eprintln!("[focusme/pin] level {lvl}, panel overlay on");
     }
 }
 
@@ -85,11 +104,16 @@ pub fn setup(app: &App) -> tauri::Result<()> {
     {
         let h = handle.clone();
         std::thread::spawn(move || {
-            for ms in [150u64, 600, 1500] {
-                std::thread::sleep(Duration::from_millis(ms));
+            let mut i = 0u32;
+            loop {
+                std::thread::sleep(Duration::from_millis(if i < 3 { 250 } else { 2000 }));
+                let first = i < 3;
+                i = i.saturating_add(1);
                 let h2 = h.clone();
                 let _ = h.run_on_main_thread(move || {
-                    fit_to_work_area(&h2);
+                    if first {
+                        fit_to_work_area(&h2);
+                    }
                     pin_above_everything(&h2);
                 });
             }
