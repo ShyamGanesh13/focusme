@@ -25,6 +25,21 @@ fn main() {
             std::fs::create_dir_all(&dir)?;
             app.manage(state::AppState::load(dir));
 
+            // Keep the OS login item in step with the setting on every launch.
+            // Defaults to on, so a freshly installed FocusMe registers itself to
+            // start at login; the installed app's path is what gets registered.
+            {
+                use tauri_plugin_autostart::ManagerExt;
+                let want = app.state::<state::AppState>().config.lock().unwrap().login_item;
+                let al = app.autolaunch();
+                let is_on = al.is_enabled().unwrap_or(false);
+                if want && !is_on {
+                    let _ = al.enable();
+                } else if !want && is_on {
+                    let _ = al.disable();
+                }
+            }
+
             overlay::build_tray(app)?;
             overlay::setup(app)?;
             scheduler::start(app.handle().clone());

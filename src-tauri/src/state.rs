@@ -110,7 +110,7 @@ pub struct Routine {
     pub to: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Config {
     pub pet: PetCfg,
@@ -120,6 +120,25 @@ pub struct Config {
     pub weather: WeatherCfg,
     pub reminders: Vec<Reminder>,
     pub routines: Vec<Routine>,
+    /// Launch FocusMe automatically when you log in. On by default; the OS
+    /// login item is kept in sync with this on every startup.
+    #[serde(default = "default_true")]
+    pub login_item: bool,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            pet: PetCfg::default(),
+            session: SessionCfg::default(),
+            water: WaterCfg::default(),
+            bedtime: BedtimeCfg::default(),
+            weather: WeatherCfg::default(),
+            reminders: Vec::new(),
+            routines: Vec::new(),
+            login_item: true,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]

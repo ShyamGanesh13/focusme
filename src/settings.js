@@ -235,12 +235,18 @@ async function renderNotes() {
 listen("notes-changed", () => renderNotes());
 
 // ------------------------------------------------------------ general
-$("autostart").checked = await invoke("autostart_get").catch(() => false);
+// "Open at login" reflects the saved setting (the OS login item is synced to it
+// on every launch). Toggling it flips both the OS item and the stored preference.
+$("autostart").checked = cfg.loginItem !== false;
 $("autostart").addEventListener("change", async (e) => {
+  const want = e.target.checked;
   try {
-    e.target.checked = await invoke("autostart_set", { enabled: e.target.checked });
+    const actual = await invoke("autostart_set", { enabled: want });
+    e.target.checked = actual;
+    cfg.loginItem = actual;
+    save();
   } catch (err) {
-    e.target.checked = !e.target.checked;
+    e.target.checked = !want;
     $("saved").textContent = "Couldn't change login item";
   }
 });
