@@ -55,11 +55,17 @@ pub fn pin_above_everything(app: &AppHandle) {
         return;
     }
 
-    // NSStatusWindowLevel = 25: above ordinary (0) and floating (3) windows.
-    const STATUS_LEVEL: isize = 25;
-    // canJoinAllSpaces (1<<0) | stationary (1<<4) | fullScreenAuxiliary (1<<8):
-    // appear on every Space, including another app's full-screen Space.
-    const BEHAVIOR: usize = (1 << 0) | (1 << 4) | (1 << 8);
+    // Sit above another app's full-screen window. NSStatusWindowLevel (25) is
+    // enough over ordinary windows but not reliably over a full-screen Space;
+    // NSScreenSaverWindowLevel (1000) is. The overlay only spans the work area
+    // (below the menu bar) and the pet sits bottom-right, so a high level never
+    // actually paints over the menu bar or notifications.
+    const OVERLAY_LEVEL: isize = 1000;
+    // canJoinAllSpaces (1<<0) | fullScreenAuxiliary (1<<8): show on every Space,
+    // INCLUDING another app's full-screen Space. `stationary` (1<<4) is
+    // deliberately NOT set — it pins the window to the desktop Space and keeps
+    // it from joining full-screen Spaces, which was the bug.
+    const BEHAVIOR: usize = (1 << 0) | (1 << 8);
     const NONACTIVATING_PANEL: usize = 1 << 7; // NSWindowStyleMaskNonactivatingPanel
 
     unsafe {
@@ -79,9 +85,21 @@ pub fn pin_above_everything(app: &AppHandle) {
                 let _: () = msg_send![ns, setBecomesKeyOnlyIfNeeded: true];
             }
         }
-        let _: () = msg_send![ns, setLevel: STATUS_LEVEL];
+        let _: () = msg_send![ns, setLevel: OVERLAY_LEVEL];
         let _: () = msg_send![ns, setCollectionBehavior: BEHAVIOR];
         let _: () = msg_send![ns, orderFrontRegardless];
+
+        // One-time readback so a still-broken setup is diagnosable from the log.
+        use std::sync::atomic::{AtomicBool, Ordering};
+        static LOGGED: AtomicBool = AtomicBool::new(false);
+        if !LOGGED.swap(true, Ordering::Relaxed) {
+            let lvl: isize = msg_send![ns, level];
+            let beh: usize = msg_send![ns, collectionBehavior];
+            let is_panel: bool = Class::get("NSPanel")
+                .map(|p| { let pc: *const Class = p; msg_send![ns, isKindOfClass: pc] })
+                .unwrap_or(false);
+            eprintln!("[focusme/overlay] applied level={lvl} behavior={beh} panel={is_panel}");
+        }
     }
 }
 
