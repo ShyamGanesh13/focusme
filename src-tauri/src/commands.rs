@@ -248,6 +248,16 @@ pub fn app_version(app: AppHandle) -> String {
     app.package_info().version.to_string()
 }
 
+/// Open a FocusMe release page in the browser. Only our own releases URL is
+/// allowed, so a page can't use this to open arbitrary links.
+#[tauri::command]
+pub fn open_release(url: String) -> Result<(), String> {
+    if !url.starts_with(&format!("{}/", crate::update::RELEASES)) {
+        return Err("not a FocusMe release link".into());
+    }
+    std::process::Command::new("open").arg(&url).spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn autostart_get(app: AppHandle) -> bool {
     app.autolaunch().is_enabled().unwrap_or(false)

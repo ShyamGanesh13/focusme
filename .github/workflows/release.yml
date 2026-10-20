@@ -1,0 +1,57 @@
+# Push a tag like v0.2.0 (scripts/release.sh does it) → GitHub builds FocusMe
+# for Apple Silicon and publishes FocusMe.zip on the Releases page.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14 # Apple Silicon
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check the tag matches the app version
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          have=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          [ "$want" = "$have" ] || { echo "Tag $GITHUB_REF_NAME but tauri.conf.json says $have. Use scripts/release.sh."; exit 1; }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - run: npx tauri build --bundles app
+
+      - name: Zip the app
+        run: ditto -c -k --keepParent src-tauri/target/release/bundle/macos/FocusMe.app FocusMe.zip
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: FocusMe.zip
+          body: |
+            **Apple Silicon Macs (M1 and later).**
+
+            ### Install or update
+            1. Quit FocusMe if it's running (menu-bar icon → Quit).
+            2. Download **FocusMe.zip** below and double-click it to unzip.
+            3. Drag **FocusMe.app** into **Applications** (choose *Replace* if asked).
+            4. Open it. It isn't signed by Apple, so the first time macOS blocks it:
+               open **System Settings → Privacy & Security**, scroll down and click **Open Anyway**.
+               If macOS says the app is *damaged*, run this once in Terminal, then open it again:
+               `xattr -dr com.apple.quarantine /Applications/FocusMe.app`
+
+            Your settings, notes and reminders are kept between versions.

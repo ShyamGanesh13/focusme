@@ -7,6 +7,7 @@ mod overlay;
 mod scheduler;
 mod state;
 mod sys;
+mod update;
 mod weather;
 mod when;
 
@@ -45,6 +46,7 @@ fn main() {
             overlay::build_tray(app)?;
             overlay::setup(app)?;
             scheduler::start(app.handle().clone());
+            update::start(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -69,6 +71,7 @@ fn main() {
             commands::set_pet_visible,
             commands::quit_app,
             commands::app_version,
+            commands::open_release,
             commands::autostart_get,
             commands::autostart_set,
             commands::get_character,

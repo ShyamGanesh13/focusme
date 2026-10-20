@@ -82,5 +82,9 @@ to update it. Unsigned, so first launch may need right-click → Open.
   mode, focus sessions + pause/snooze, one-off + daily + routine reminders, water, bedtime,
   chat with inline action buttons, clear-chat, login item, `install-mac.sh`.
 - Remote is `github.com/ShyamGanesh13/focusme` (branch `main`). Push with a PAT.
-- Roadmap left (see README): browser-tab budget, **auto-update** for the installed app,
+- **Releases:** `./scripts/release.sh X.Y.Z` bumps `tauri.conf.json`/`package.json`, tags
+  `vX.Y.Z`, pushes; `.github/workflows/release.yml` (macos-14, Apple Silicon) builds and
+  attaches `FocusMe.zip`. `update.rs` checks `/releases/latest`'s redirect once a day (not
+  the REST API — rate-limited on shared office IPs) and emits `update-available`.
+- Roadmap left (see README): browser-tab budget, in-place auto-install of updates,
   signed/notarised releases, Windows build.

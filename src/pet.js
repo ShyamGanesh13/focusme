@@ -795,6 +795,17 @@ listen("routine", ({ payload: r }) => {
     ],
   });
 });
+listen("update-available", ({ payload: u }) => {
+  touched();
+  peekFor(PEEK.nudge);
+  say(`FocusMe ${u.version} is out!`, {
+    ms: 0, alert: true, small: "Update",
+    actions: [
+      { label: "Download", act: () => invoke("open_release", { url: u.url }) },
+      { label: "Later", act: () => {} },
+    ],
+  });
+});
 listen("bedtime", () => {
   peekFor(6500);
   say("It's getting late. Goodnight!", { ms: 6000 });

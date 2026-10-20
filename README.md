@@ -16,6 +16,16 @@ Settings → Pet to keep it on screen all the time.
 Built with **Tauri 2** (Rust) and vanilla JS. The installer is small, there's no Electron,
 and everything stays on your Mac.
 
+## Download (no build needed)
+
+Grab **FocusMe.zip** from the [latest release](https://github.com/ShyamGanesh13/focusme/releases/latest)
+(Apple Silicon Macs), unzip, drag **FocusMe.app** into Applications. The release page
+has the one-time "Open Anyway" step for unsigned apps. Once installed, FocusMe checks
+for a new release once a day and Pip offers a **Download** button when one is out.
+
+To publish a release: `./scripts/release.sh 0.2.0` (bumps the version, tags, pushes;
+GitHub Actions builds and uploads the zip in ~5–10 min).
+
 ## Quick start (macOS)
 
 ```bash
@@ -130,6 +140,7 @@ Tauri app) that inspired this project. The code and character here are original.
 - [x] Daily reminders and repeating routines
 - [x] Peek mode (hide until there's a nudge)
 - [ ] Close distracting browser tabs on a daily budget (Chrome / Safari / Arc via AppleScript)
-- [ ] Auto-update the installed app (so changes don't need a re-run of `install-mac.sh`)
+- [x] GitHub Releases + a daily "update available" nudge
+- [ ] Install updates in place (no manual download)
 - [ ] Signed and notarised releases
 - [ ] Windows build (the Rust side is already cross-platform)
