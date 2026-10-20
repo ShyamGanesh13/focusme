@@ -25,12 +25,17 @@ if [ ! -d "$BUNDLE" ]; then
   exit 1
 fi
 
+echo "▶ Quitting any running FocusMe so the new build takes over…"
+osascript -e 'quit app "FocusMe"' >/dev/null 2>&1 || true
+pkill -x FocusMe >/dev/null 2>&1 || true
+sleep 1
+
 echo "▶ Installing to $DEST…"
 rm -rf "$DEST"
 cp -R "$BUNDLE" "$DEST"
 
-echo "▶ Launching…"
-open "$DEST"
+echo "▶ Launching the new build…"
+open -n "$DEST"
 
 cat <<'DONE'
 
