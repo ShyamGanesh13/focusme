@@ -1,7 +1,7 @@
 // settings.js — every knob. Changes save as you make them.
 
 import { invoke, listen, loadCharacterSvg } from "./lib/bridge.js";
-import { Character, sanitizeSvg } from "./lib/character.js";
+import { Character, sanitizeSvg, drawsSomething } from "./lib/character.js";
 
 const $ = (id) => document.getElementById(id);
 let cfg = await invoke("get_config");
@@ -96,6 +96,7 @@ $("charFile").addEventListener("change", async (e) => {
       if (out.length <= MAX_SAVE) break;
     }
     if (out.length > MAX_SAVE) throw new Error("That picture is too detailed to fit in 2 MB, even shrunk. Try a simpler image.");
+    await assertVisible(out);
     await invoke("set_character", { svg: out }); // save first, so a failure leaves the preview on the real character
     await showCharacter(out);
     $("saved").textContent = "Character updated";
@@ -104,6 +105,22 @@ $("charFile").addEventListener("change", async (e) => {
     $("charErr").hidden = false;
   }
 });
+// Mount it off-screen and make sure something shows, so an empty or broken
+// upload is refused instead of saved as an invisible pet.
+async function assertVisible(svgText) {
+  const box = document.createElement("div");
+  box.style.cssText = "position:fixed;left:-10000px;top:0;width:200px;height:200px";
+  document.body.appendChild(box);
+  try {
+    const c = new Character(box, svgText);
+    const ok = await drawsSomething(c.svg);
+    c.destroy();
+    if (!ok) throw new Error("That picture doesn't show anything — it may be empty, drawn outside its frame, or a broken image.");
+  } finally {
+    box.remove();
+  }
+}
+
 // ---- pictures with a baked-in background
 // Many "transparent" PNGs (AI stickers especially) actually have a painted
 // checkerboard or white backdrop. Erase light, grey-ish pixels connected to the

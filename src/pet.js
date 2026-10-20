@@ -10,7 +10,7 @@
 // unwinds on its next check instead of fighting the new behaviour.
 
 import { invoke, listen, emit, inTauri, loadCharacterSvg } from "./lib/bridge.js";
-import { Character } from "./lib/character.js";
+import { Character, drawsSomething } from "./lib/character.js";
 import { chime } from "./lib/chime.js";
 
 const $ = (id) => document.getElementById(id);
@@ -831,8 +831,10 @@ async function mountCharacter() {
   char && char.destroy();
   try {
     char = new Character(artEl, svg);
+    if (!(await drawsSomething(char.svg))) throw new Error("it draws nothing visible");
   } catch (e) {
     log("custom character failed, using default:", e.message);
+    char && char.destroy();
     char = new Character(artEl, await (await fetch("characters/default.svg")).text());
   }
   applySize();

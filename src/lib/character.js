@@ -34,6 +34,28 @@ const DEFAULT_ORIGIN = {
 
 const BLOCKED_TAGS = ["script", "foreignObject", "iframe", "embed", "object", "audio", "video", "set", "handler", "listener"];
 
+/**
+ * Does a mounted character actually draw something? False when its shapes are
+ * empty, lie entirely outside the viewBox, or an embedded picture won't decode
+ * — any of which would otherwise leave an invisible pet.
+ */
+export async function drawsSomething(svg) {
+  let b;
+  try { b = svg.getBBox(); } catch (_) { return false; }
+  const vb = svg.viewBox.baseVal;
+  const w = Math.min(b.x + b.width, vb.x + vb.width) - Math.max(b.x, vb.x);
+  const h = Math.min(b.y + b.height, vb.y + vb.height) - Math.max(b.y, vb.y);
+  if (!(w > 1 && h > 1)) return false;
+  const pics = [...svg.querySelectorAll("image")].map((el) => el.getAttribute("href") || el.getAttribute("xlink:href") || "");
+  const decoded = await Promise.all(pics.map((src) => new Promise((done) => {
+    const i = new Image();
+    i.onload = () => done(i.naturalWidth > 0);
+    i.onerror = () => done(false);
+    i.src = src;
+  })));
+  return decoded.every(Boolean);
+}
+
 /** Parse and defang an untrusted SVG string. Throws on non-SVG input. */
 export function sanitizeSvg(text) {
   const doc = new DOMParser().parseFromString(text, "image/svg+xml");
