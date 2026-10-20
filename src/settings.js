@@ -97,7 +97,8 @@ $("charFile").addEventListener("change", async (e) => {
 });
 $("charReset").addEventListener("click", async () => {
   await invoke("reset_character");
-  showCharacter(await (await fetch("characters/default.svg")).text());
+  await showCharacter(await (await fetch("characters/default.svg")).text());
+  $("saved").textContent = "Character reset to Pip";
 });
 
 // ------------------------------------------------------------ focus

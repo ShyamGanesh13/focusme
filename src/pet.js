@@ -65,6 +65,7 @@ function wantShown() {
   if (!peekMode) return 1;
   if (sessionActive) return 1;                 // stay out through a focus session (timer visible)
   if (!chatEl.hidden || !menuEl.hidden) return 1;
+  if (awaitingAnswer()) return 1;               // a nudge with buttons waits for your choice
   return performance.now() < peekUntil ? 1 : 0;
 }
 
@@ -212,6 +213,8 @@ function say(text, { ms = 3800, small = "", alert = false, clickable = false, fo
   // Normally the open chat shows messages instead of a bubble, but an alert
   // (reminder / water / session) must show even while the chat is open.
   if (!chatEl.hidden && !alert && !force && !actions) return;
+  // Don't let small talk (a tap, a greeting) wipe out a nudge still waiting for an answer.
+  if (awaitingAnswer() && !actions) return;
   clearTimeout(bubbleTimer);
   bubbleEl.textContent = "";
   const line = document.createElement("div");
@@ -237,6 +240,9 @@ function say(text, { ms = 3800, small = "", alert = false, clickable = false, fo
   clearTimeout(bubbleTimer);
   if (ms) bubbleTimer = setTimeout(hush, ms);
   sendHit(true);
+}
+function awaitingAnswer() {
+  return !bubbleEl.hidden && !!bubbleEl.querySelector(".bub-actions");
 }
 function hush() {
   bubbleEl.hidden = true;

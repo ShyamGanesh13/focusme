@@ -41,9 +41,9 @@ echo "▶ Installing to $DEST…"
 mkdir -p "$DIR"
 rm -rf "$DEST"
 # Only one installed copy, so the login item and Spotlight find the right one.
-for old in "/Applications/$APP_NAME" "$HOME/Applications/$APP_NAME"; do
-  [ "$old" != "$DEST" ] && rm -rf "$old" 2>/dev/null || true
-done
+# (Never touch /Applications when it isn't writable: rm there can half-succeed
+# and leave an empty, broken FocusMe.app behind.)
+if [ "$DIR" = "/Applications" ]; then rm -rf "$HOME/Applications/$APP_NAME"; fi
 cp -R "$BUNDLE" "$DEST"
 
 echo "▶ Launching the new build…"
