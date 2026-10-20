@@ -84,9 +84,11 @@ $("charFile").addEventListener("change", async (e) => {
   e.target.value = "";
   if (!f) return;
   try {
-    if (f.size > 2 * 1024 * 1024) throw new Error("That SVG is over 2 MB — please simplify it.");
-    const text = await f.text();
+    const isSvg = f.type === "image/svg+xml" || f.name.toLowerCase().endsWith(".svg");
+    if (isSvg && f.size > 2 * 1024 * 1024) throw new Error("That SVG is over 2 MB — please simplify it.");
+    let text = isSvg ? await f.text() : await rasterToSvg(f);
     sanitizeSvg(text); // throws if it isn't an SVG
+    text = await knockOutBackgrounds(text);
     await showCharacter(text);
     await invoke("set_character", { svg: text });
     $("saved").textContent = "Character updated";
@@ -95,6 +97,77 @@ $("charFile").addEventListener("change", async (e) => {
     $("charErr").hidden = false;
   }
 });
+// ---- pictures with a baked-in background
+// Many "transparent" PNGs (AI stickers especially) actually have a painted
+// checkerboard or white backdrop. Erase light, grey-ish pixels connected to the
+// image edge; the figure's outline stops the fill so its insides are kept.
+const MAX_PX = 900; // pet is at most 420pt tall; 900px stays sharp on Retina and under 2 MB
+
+async function rasterToSvg(file) {
+  const url = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(file); });
+  const img = await loadImg(url);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${img.naturalWidth} ${img.naturalHeight}"><image href="${url}" width="${img.naturalWidth}" height="${img.naturalHeight}"/></svg>`;
+}
+
+function loadImg(src) {
+  return new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error("Couldn't read that image.")); i.src = src; });
+}
+
+async function knockOutBackgrounds(svgText) {
+  const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
+  const imgs = [...doc.querySelectorAll("image")].filter((el) => /^data:image\/(png|jpe?g|webp)/.test(el.getAttribute("href") || el.getAttribute("xlink:href") || ""));
+  if (!imgs.length) return svgText;
+  for (const el of imgs) {
+    const out = await clearBackdrop(el.getAttribute("href") || el.getAttribute("xlink:href"));
+    if (out) { el.removeAttribute("xlink:href"); el.setAttribute("href", out); }
+  }
+  doc.querySelectorAll("metadata").forEach((m) => m.remove()); // drop bulky C2PA blobs
+  return new XMLSerializer().serializeToString(doc);
+}
+
+// Returns a new PNG data URL, or null when the picture already has real transparency.
+async function clearBackdrop(src) {
+  const img = await loadImg(src);
+  const k = Math.min(1, MAX_PX / Math.max(img.naturalWidth, img.naturalHeight));
+  const w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  const g = cv.getContext("2d");
+  g.drawImage(img, 0, 0, w, h);
+  const data = g.getImageData(0, 0, w, h);
+  const px = data.data;
+  // Already transparent around the edge? Leave it alone.
+  let clear = 0;
+  for (let x = 0; x < w; x++) if (px[x * 4 + 3] < 250 || px[((h - 1) * w + x) * 4 + 3] < 250) clear++;
+  if (clear > w * 0.5) return k < 1 ? cv.toDataURL("image/png") : null;
+
+  const isBackdrop = (i) => {
+    const r = px[i], gg = px[i + 1], b = px[i + 2];
+    return Math.min(r, gg, b) > 185 && Math.max(r, gg, b) - Math.min(r, gg, b) < 28; // light and grey/white
+  };
+  const seen = new Uint8Array(w * h);
+  const stack = [];
+  const push = (p) => { if (!seen[p] && isBackdrop(p * 4)) { seen[p] = 1; stack.push(p); } };
+  for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
+  for (let y = 0; y < h; y++) { push(y * w); push(y * w + w - 1); }
+  while (stack.length) {
+    const p = stack.pop(), x = p % w;
+    px[p * 4 + 3] = 0;
+    if (x > 0) push(p - 1);
+    if (x < w - 1) push(p + 1);
+    if (p >= w) push(p - w);
+    if (p < w * (h - 1)) push(p + w);
+  }
+  // Soften the cut: half-fade any kept pixel that touches a removed one.
+  for (let p = 0; p < w * h; p++) {
+    if (seen[p]) continue;
+    const x = p % w;
+    if ((x > 0 && seen[p - 1]) || (x < w - 1 && seen[p + 1]) || (p >= w && seen[p - w]) || (p < w * (h - 1) && seen[p + w])) px[p * 4 + 3] = 140;
+  }
+  g.putImageData(data, 0, 0);
+  return cv.toDataURL("image/png");
+}
+
 $("charReset").addEventListener("click", async () => {
   await invoke("reset_character");
   await showCharacter(await (await fetch("characters/default.svg")).text());

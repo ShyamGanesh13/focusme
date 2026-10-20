@@ -40,7 +40,7 @@
     <!-- CHARACTER -->
     <section data-panel="character">
       <h1>Character</h1>
-      <p class="lead">Use any SVG as your pet. It walks, breathes, hops and sleeps as-is.
+      <p class="lead">Use any SVG, PNG or JPG as your pet (a plain or checkerboard background is removed for you). It walks, breathes, hops and sleeps as-is.
         Name groups in your SVG to unlock extra moves — see <code>docs/CHARACTER_SVG.md</code>.</p>
       <div class="charbox">
         <div id="charPreview"></div>
@@ -48,7 +48,7 @@
           <p class="found" id="charParts"></p>
           <p class="err" id="charErr" hidden></p>
           <div class="btns">
-            <label class="btn primary">Choose SVG…<input id="charFile" type="file" accept=".svg,image/svg+xml" hidden></label>
+            <label class="btn primary">Choose image…<input id="charFile" type="file" accept=".svg,image/svg+xml,image/png,image/jpeg" hidden></label>
             <button class="btn" id="charReset" type="button">Use default</button>
           </div>
         </div>
