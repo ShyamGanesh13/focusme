@@ -114,6 +114,22 @@ pub struct Routine {
     pub to: String,
 }
 
+/// A reminder that repeats every day at a fixed clock time, e.g. 11:30 — "have
+/// chia seeds". The one-off cousin is [`Reminder`]; the interval cousin is
+/// [`Routine`].
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DailyReminder {
+    #[serde(default)]
+    pub id: u64,
+    /// What the notification says.
+    pub label: String,
+    /// "HH:MM", 24-hour local time.
+    pub time: String,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Config {
@@ -124,6 +140,8 @@ pub struct Config {
     pub weather: WeatherCfg,
     pub reminders: Vec<Reminder>,
     pub routines: Vec<Routine>,
+    /// Reminders that repeat every day at a set time.
+    pub daily: Vec<DailyReminder>,
     /// Launch FocusMe automatically when you log in. On by default; the OS
     /// login item is kept in sync with this on every startup.
     #[serde(default = "default_true")]
@@ -140,6 +158,7 @@ impl Default for Config {
             weather: WeatherCfg::default(),
             reminders: Vec::new(),
             routines: Vec::new(),
+            daily: Vec::new(),
             login_item: true,
         }
     }
@@ -186,6 +205,9 @@ pub struct Runtime {
     /// When each routine last fired, keyed by routine id. A routine starts
     /// counting from the moment it's first seen, so it never fires instantly.
     pub routine_last: std::collections::HashMap<u64, DateTime<Local>>,
+    /// The date (YYYY-MM-DD) each daily reminder last fired, so it fires at
+    /// most once per day.
+    pub daily_fired: std::collections::HashMap<u64, String>,
 }
 
 pub struct AppState {
@@ -254,6 +276,11 @@ impl AppState {
                 r.id = next_id();
             }
         }
+        for d in config.daily.iter_mut() {
+            if d.id == 0 {
+                d.id = next_id();
+            }
+        }
         let notes: Vec<Note> = read_json(&dir.join("notes.json"));
         Self {
             dir,
@@ -266,6 +293,7 @@ impl AppState {
                 last_water: Local::now(),
                 bedtime_fired: None,
                 routine_last: std::collections::HashMap::new(),
+                daily_fired: std::collections::HashMap::new(),
             }),
             hit: Mutex::new(std::collections::HashMap::new()),
             visible: std::sync::atomic::AtomicBool::new(true),

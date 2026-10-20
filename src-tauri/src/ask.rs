@@ -161,6 +161,9 @@ pub enum Command {
     /// A custom repeating routine: every `minutes`, nudge with `text`.
     /// `minutes == 0` means the interval couldn't be parsed.
     Every { minutes: u32, text: String },
+    /// A daily reminder at clock time `time` ("HH:MM", 24h). Empty `time`
+    /// means it couldn't be parsed.
+    Daily { time: String, text: String },
     Hide,
     Settings,
     Quit,
@@ -204,6 +207,28 @@ fn parse_every(rest: &str) -> Option<(u32, String)> {
     None
 }
 
+/// Pull a clock time + label out of a `/daily` body: "11:30 chia seeds",
+/// "3:30pm ABC milk", "9am water". Returns ("HH:MM" 24h, label).
+fn parse_daily(rest: &str) -> Option<(String, String)> {
+    static CLOCK: OnceLock<Regex> = OnceLock::new();
+    let clock = CLOCK.get_or_init(|| Regex::new(r"(?i)\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b").unwrap());
+    let c = clock.captures(rest)?;
+    let mut h: u32 = c[1].parse().ok()?;
+    let min: u32 = c.get(2).and_then(|m| m.as_str().parse().ok()).unwrap_or(0);
+    let ampm = c.get(3).map(|m| m.as_str().to_lowercase());
+    match ampm.as_deref() {
+        Some("am") => { if h == 12 { h = 0; } }
+        Some("pm") => { if h != 12 { h += 12; } }
+        _ => {}
+    }
+    if h > 23 || min > 59 {
+        return None;
+    }
+    let m = c.get(0).unwrap();
+    let label = format!("{} {}", rest[..m.start()].trim(), rest[m.end()..].trim());
+    Some((format!("{h:02}:{min:02}"), label.trim().to_string()))
+}
+
 pub fn command(s: &str) -> Command {
     let t = s.trim().trim_start_matches('/');
     let (head, rest) = match t.find(char::is_whitespace) {
@@ -227,6 +252,10 @@ pub fn command(s: &str) -> Command {
             Some((minutes, text)) => Command::Every { minutes, text },
             None => Command::Every { minutes: 0, text: rest.to_string() },
         },
+        "daily" | "everyday" => match parse_daily(rest) {
+            Some((time, text)) => Command::Daily { time, text },
+            None => Command::Daily { time: String::new(), text: rest.to_string() },
+        },
         "remind" | "reminder" | "r" => Command::Remind(rest.to_string()),
         "note" | "n" => Command::Note(rest.to_string()),
         "hide" => Command::Hide,
@@ -247,6 +276,7 @@ pub fn help() -> Answer {
             "timer?  notes?  reminders?  time?".into(),
             "/timer 25  ·  /stop  ·  /remind call Kavi at 5pm".into(),
             "/every 2h stand and stretch  ·  a repeating nudge".into(),
+            "/daily 11:30 chia seeds  ·  a reminder at the same time each day".into(),
             "/water 10  ·  a drink-water nudge every 10 min  (/water off)".into(),
             "/sleep  ·  /hide  ·  /settings  ·  /quit".into(),
             "Anything else you type is saved as a note.".into(),
@@ -315,5 +345,17 @@ mod tests {
         // no interval at all
         assert_eq!(command("/every stand up"), Command::Every { minutes: 0, text: "stand up".into() });
         assert_eq!(command("/repeat 45min hydrate"), Command::Every { minutes: 45, text: "hydrate".into() });
+    }
+
+    #[test]
+    fn daily() {
+        assert_eq!(command("/daily 11:30 chia seeds"), Command::Daily { time: "11:30".into(), text: "chia seeds".into() });
+        assert_eq!(command("/daily 3:30pm ABC milk"), Command::Daily { time: "15:30".into(), text: "ABC milk".into() });
+        assert_eq!(command("/daily 9am water"), Command::Daily { time: "09:00".into(), text: "water".into() });
+        assert_eq!(command("/daily 12am midnight snack"), Command::Daily { time: "00:00".into(), text: "midnight snack".into() });
+        assert_eq!(command("/daily 12pm lunch"), Command::Daily { time: "12:00".into(), text: "lunch".into() });
+        assert_eq!(command("/everyday 7:05 vitamins"), Command::Daily { time: "07:05".into(), text: "vitamins".into() });
+        // no time → empty time, caller errors
+        assert_eq!(command("/daily chia seeds"), Command::Daily { time: String::new(), text: "chia seeds".into() });
     }
 }

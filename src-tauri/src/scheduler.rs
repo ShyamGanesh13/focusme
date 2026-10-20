@@ -6,6 +6,13 @@ use chrono::{Duration, Local, NaiveDateTime, NaiveTime, Timelike};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
+/// Payload for a daily reminder — reuses the pet's "reminder" bubble, which
+/// only needs `text`.
+#[derive(Serialize, Clone)]
+struct DailyFire {
+    text: String,
+}
+
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 struct Tick {
@@ -41,6 +48,7 @@ pub fn start(app: AppHandle) {
                 c.reminders.iter().filter(|r| !r.done).count(),
                 c.routines.iter().filter(|r| r.enabled).count()
             );
+            eprintln!("[focusme/sched] daily reminders={}", c.daily.iter().filter(|d| d.enabled).count());
         }
         loop {
             std::thread::sleep(std::time::Duration::from_secs(1));
@@ -166,6 +174,29 @@ fn beat(app: &AppHandle) {
             eprintln!("[focusme/routine] firing: {} (every {}min)", r.label, r.every_minutes);
             // Bubble only — no system banner for routines (kept for water/reminders/session).
             let _ = app.emit("routine", r);
+        }
+    }
+
+    // daily reminders — fire once per day at their clock time (skip bedtime)
+    if !bedtime {
+        let hm_now = now.format("%H:%M").to_string();
+        let today = now.date_naive().to_string();
+        let mut fired = vec![];
+        {
+            let mut rt = state.rt.lock().unwrap();
+            for d in cfg.daily.iter().filter(|d| d.enabled && d.time.trim() == hm_now) {
+                if rt.daily_fired.get(&d.id).map(|s| s.as_str()) != Some(today.as_str()) {
+                    rt.daily_fired.insert(d.id, today.clone());
+                    fired.push(d.clone());
+                }
+            }
+            let live: std::collections::HashSet<u64> = cfg.daily.iter().map(|d| d.id).collect();
+            rt.daily_fired.retain(|id, _| live.contains(id));
+        }
+        for d in fired {
+            eprintln!("[focusme/daily] firing: {} at {}", d.label, d.time);
+            notify("Reminder", &d.label);
+            let _ = app.emit("reminder", DailyFire { text: d.label });
         }
     }
 

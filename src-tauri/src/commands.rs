@@ -1,7 +1,7 @@
 //! Everything the two webviews can call.
 
 use crate::ask::{self, Answer, Command, Intent, Shape};
-use crate::state::{next_id, stamp, AppState, Config, HitState, Note, Rect, Reminder, Routine};
+use crate::state::{next_id, stamp, AppState, Config, DailyReminder, HitState, Note, Rect, Reminder, Routine};
 use crate::{overlay, sys, weather, when};
 use chrono::{Duration, Local};
 use serde::Serialize;
@@ -29,6 +29,11 @@ pub fn save_config(app: AppHandle, state: State<AppState>, cfg: Config) {
             r.id = next_id();
         }
     }
+    for d in cfg.daily.iter_mut() {
+        if d.id == 0 {
+            d.id = next_id();
+        }
+    }
     state.save_config(&cfg);
     *state.config.lock().unwrap() = cfg.clone();
     let _ = app.emit("config-changed", cfg);
@@ -38,6 +43,13 @@ pub fn save_config(app: AppHandle, state: State<AppState>, cfg: Config) {
 pub fn set_hitbox(window: tauri::WebviewWindow, state: State<AppState>, rects: Vec<Rect>, hold: bool) {
     // Each overlay window (one per monitor) reports its own hit rectangles.
     state.hit.lock().unwrap().insert(window.label().to_string(), HitState { rects, hold });
+}
+
+/// Each overlay's webview reports in once it's up — confirms the per-monitor
+/// window is actually running pet.js and what size it sees.
+#[tauri::command]
+pub fn pet_ready(window: tauri::WebviewWindow, w: f64, h: f64) {
+    eprintln!("[focusme/pet] {} ready — inner {}x{}", window.label(), w as i64, h as i64);
 }
 
 /// Give the pet window the user is on real keyboard focus so its chat box can
@@ -348,6 +360,7 @@ fn run_command(app: &AppHandle, state: &AppState, cmd: Command) -> Answer {
             }
         }
         Command::Every { minutes, text } => add_routine(app, state, minutes, &text),
+        Command::Daily { time, text } => add_daily(app, state, &time, &text),
         Command::Remind(rest) => remind(app, state, &rest),
         Command::Note(rest) => {
             if rest.is_empty() {
@@ -426,6 +439,35 @@ fn add_routine(app: &AppHandle, state: &AppState, minutes: u32, text: &str) -> A
     Answer::command(&format!("Done — every {}, I'll nudge you: {text}", human_every(minutes)))
 }
 
+/// 24h "HH:MM" -> "3:30 PM" for friendly confirmation.
+fn human_time(hhmm: &str) -> String {
+    let mut parts = hhmm.split(':');
+    let h: u32 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    let m: u32 = parts.next().and_then(|s| s.parse().ok()).unwrap_or(0);
+    let ampm = if h < 12 { "AM" } else { "PM" };
+    let h12 = match h % 12 { 0 => 12, x => x };
+    format!("{h12}:{m:02} {ampm}")
+}
+
+fn add_daily(app: &AppHandle, state: &AppState, time: &str, text: &str) -> Answer {
+    let text = text.trim();
+    if time.is_empty() {
+        return Answer::error("What time each day?", vec!["Like: /daily 11:30 chia seeds".into()]);
+    }
+    if text.is_empty() {
+        return Answer::error("What should I remind you about?", vec!["Like: /daily 3:30pm ABC milk".into()]);
+    }
+    let id = next_id();
+    let cfg = {
+        let mut cfg = state.config.lock().unwrap();
+        cfg.daily.push(DailyReminder { id, label: text.to_string(), time: time.to_string(), enabled: true });
+        state.save_config(&cfg);
+        cfg.clone()
+    };
+    let _ = app.emit("config-changed", cfg);
+    Answer::command(&format!("Every day at {}, I'll remind you: {text}", human_time(time)))
+}
+
 fn answer_question(state: &AppState, q: &str) -> Answer {
     match ask::intent(q) {
         Intent::Greeting => {
@@ -463,18 +505,22 @@ fn answer_question(state: &AppState, q: &str) -> Answer {
             let mut up: Vec<&Reminder> = cfg.reminders.iter().filter(|r| !r.done).collect();
             up.sort_by(|a, b| a.at.cmp(&b.at));
             let routines: Vec<&Routine> = cfg.routines.iter().filter(|r| r.enabled).collect();
+            let daily: Vec<&DailyReminder> = cfg.daily.iter().filter(|d| d.enabled).collect();
             let mut lines: Vec<String> =
                 up.iter().take(5).map(|r| format!("{} — {}", r.at.replace('T', " "), r.text)).collect();
+            for d in &daily {
+                lines.push(format!("daily {} — {}", human_time(&d.time), d.label));
+            }
             for r in &routines {
                 lines.push(format!("every {} — {}", human_every(r.every_minutes), r.label));
             }
             if lines.is_empty() {
                 Answer::answer(
                     "Nothing scheduled.",
-                    vec!["/remind stretch in 30 min  ·  /every 2h stand and stretch".into()],
+                    vec!["/remind stretch in 30 min  ·  /daily 11:30 chia seeds  ·  /every 2h stand".into()],
                 )
             } else {
-                let n = up.len() + routines.len();
+                let n = up.len() + routines.len() + daily.len();
                 Answer::answer(&format!("{n} coming up"), lines)
             }
         }

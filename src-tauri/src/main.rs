@@ -49,6 +49,7 @@ fn main() {
             commands::get_config,
             commands::save_config,
             commands::set_hitbox,
+            commands::pet_ready,
             commands::focus_pet,
             commands::ask,
             commands::list_notes,

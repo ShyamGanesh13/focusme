@@ -52,6 +52,7 @@ function fill() {
   $("speedOut").textContent = Number(cfg.pet.speed).toFixed(2) + "×";
   renderReminders();
   renderRoutines();
+  renderDaily();
 }
 
 for (const [id, prop, , set] of binds) {
@@ -204,6 +205,51 @@ $("routineAdd").addEventListener("click", () => {
   inputs.forEach((i) => { if (!i.value) i.focus(); });
 });
 
+// ------------------------------------------------------------ daily reminders
+function renderDaily() {
+  const list = $("dailyList");
+  if (!list) return;
+  if (!cfg.daily) cfg.daily = [];
+  list.replaceChildren();
+  if (!cfg.daily.length) {
+    const e = document.createElement("div");
+    e.className = "empty";
+    e.textContent = "No daily reminders yet.";
+    list.appendChild(e);
+    return;
+  }
+  const mk = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  for (const d of cfg.daily) {
+    const item = mk("div", "item routine" + (d.enabled === false ? " off" : ""));
+
+    const top = mk("div", "rtop");
+    const on = mk("input");
+    on.type = "checkbox"; on.checked = d.enabled !== false; on.title = "Enable / disable";
+    on.addEventListener("change", () => { d.enabled = on.checked; item.classList.toggle("off", !on.checked); save(); });
+    const text = mk("input");
+    text.type = "text"; text.value = d.label || ""; text.placeholder = "Remind me to… (e.g. have chia seeds)";
+    text.addEventListener("input", () => { d.label = text.value; save(); });
+    const del = mk("button", "x", "×"); del.title = "Delete";
+    del.addEventListener("click", () => { cfg.daily = cfg.daily.filter((x) => x !== d); save(); renderDaily(); });
+    top.append(on, text, del);
+
+    const bot = mk("div", "rbot");
+    const time = mk("input"); time.type = "time"; time.value = d.time || "09:00"; time.title = "Time each day";
+    time.addEventListener("change", () => { d.time = time.value || "09:00"; save(); });
+    bot.append(mk("span", "lbl", "Every day at"), time);
+
+    item.append(top, bot);
+    list.appendChild(item);
+  }
+}
+$("dailyAdd").addEventListener("click", () => {
+  if (!cfg.daily) cfg.daily = [];
+  cfg.daily.push({ id: 0, label: "", time: "09:00", enabled: true });
+  renderDaily();
+  const inputs = $("dailyList").querySelectorAll("input[type=text]");
+  inputs.forEach((i) => { if (!i.value) i.focus(); });
+});
+
 // ------------------------------------------------------------ notes
 async function renderNotes() {
   const notes = await invoke("list_notes");
@@ -263,7 +309,7 @@ $("quit").addEventListener("click", () => invoke("quit_app"));
 // while the next save wrote the stale copy (labels got truncated mid-typing).
 // Our own debounced save already keeps disk in sync, so ignoring the echo is safe.
 listen("config-changed", ({ payload }) => {
-  const editing = document.activeElement && document.activeElement.closest("#remList, #routineList, input[type=text]");
+  const editing = document.activeElement && document.activeElement.closest("#remList, #routineList, #dailyList, input[type=text]");
   if (editing) return;
   cfg = payload;
   fill();

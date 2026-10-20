@@ -722,6 +722,7 @@ mode = "idle";
 setBreathe(true);
 place();
 log("pet mounted", { W, H, x, innerW: window.innerWidth, innerH: window.innerHeight });
+invoke("pet_ready", { w: window.innerWidth, h: window.innerHeight }).catch(() => {});
 requestAnimationFrame(frame);
 // In peek mode the pet stays tucked away until a nudge; no launch greeting.
 if (!peekMode) {
