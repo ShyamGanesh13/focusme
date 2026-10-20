@@ -12,7 +12,8 @@ use serde::Serialize;
 use std::time::{Duration, Instant};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{App, AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder};
+use std::sync::atomic::Ordering;
+use tauri::{App, AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 
 #[derive(Serialize, Clone, Copy)]
 struct Cursor {
@@ -20,14 +21,90 @@ struct Cursor {
     y: f64,
 }
 
-pub fn fit_to_work_area(app: &AppHandle) {
-    let Some(win) = app.get_webview_window("pet") else { return };
-    let monitor = win.primary_monitor().ok().flatten().or_else(|| win.current_monitor().ok().flatten());
-    if let Some(m) = monitor {
-        let wa = m.work_area();
-        let _ = win.set_position(PhysicalPosition::new(wa.position.x, wa.position.y));
-        let _ = win.set_size(PhysicalSize::new(wa.size.width, wa.size.height));
+/// All overlay windows — one per monitor. Label "pet" is the primary (defined
+/// in tauri.conf.json); extra monitors get "pet-2", "pet-3", …
+fn pet_windows(app: &AppHandle) -> Vec<WebviewWindow> {
+    app.webview_windows()
+        .into_iter()
+        .filter(|(l, _)| l == "pet" || l.starts_with("pet-"))
+        .map(|(_, w)| w)
+        .collect()
+}
+
+fn pet_label(i: usize) -> String {
+    if i == 0 { "pet".to_string() } else { format!("pet-{}", i + 1) }
+}
+
+/// Index of a pet window from its label ("pet" → 0, "pet-2" → 1, …).
+fn pet_index(label: &str) -> usize {
+    if label == "pet" {
+        0
+    } else {
+        label.strip_prefix("pet-").and_then(|s| s.parse::<usize>().ok()).map(|k| k.saturating_sub(1)).unwrap_or(usize::MAX)
     }
+}
+
+/// Size a window to fill one monitor's work area (everything but the menu bar
+/// and Dock), in that monitor's own physical coordinates.
+fn fit_window_to_monitor(win: &WebviewWindow, m: &tauri::Monitor) {
+    let wa = m.work_area();
+    let _ = win.set_position(PhysicalPosition::new(wa.position.x, wa.position.y));
+    let _ = win.set_size(PhysicalSize::new(wa.size.width, wa.size.height));
+}
+
+/// Make sure there is exactly one overlay window per monitor, each fitted and
+/// pinned. Creates windows for newly-attached monitors and closes ones whose
+/// monitor went away. Safe to call repeatedly (the monitor reconcile loop does).
+pub fn reconcile_pets(app: &AppHandle) {
+    let mons = app.available_monitors().unwrap_or_default();
+    let visible = app.state::<AppState>().visible.load(Ordering::Relaxed);
+
+    for (i, m) in mons.iter().enumerate() {
+        let label = pet_label(i);
+        match app.get_webview_window(&label) {
+            Some(w) => {
+                fit_window_to_monitor(&w, m);
+                pin_above_everything(&w);
+            }
+            None => {
+                let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("pet.html".into()))
+                    .title("FocusMe")
+                    .inner_size(900.0, 600.0)
+                    .transparent(true)
+                    .decorations(false)
+                    .always_on_top(true)
+                    .shadow(false)
+                    .skip_taskbar(true)
+                    .focused(false)
+                    .visible(false)
+                    .resizable(false)
+                    .visible_on_all_workspaces(true)
+                    .accept_first_mouse(true)
+                    .build();
+                match built {
+                    Ok(w) => {
+                        fit_window_to_monitor(&w, m);
+                        let _ = w.set_ignore_cursor_events(true);
+                        if visible {
+                            let _ = w.show();
+                        }
+                        pin_above_everything(&w);
+                        eprintln!("[focusme/overlay] created {label} on monitor {:?}", m.position());
+                    }
+                    Err(e) => eprintln!("[focusme/overlay] could not create {label}: {e}"),
+                }
+            }
+        }
+    }
+
+    // Close overlays for monitors that are no longer present (keep "pet").
+    let n = mons.len().max(1);
+    for w in pet_windows(app) {
+        if w.label() != "pet" && pet_index(w.label()) >= n {
+            let _ = w.close();
+        }
+    }
+    eprintln!("[focusme/overlay] monitors={} overlays={}", mons.len(), pet_windows(app).len());
 }
 
 /// Keep the overlay above the app you're actually using.
@@ -40,7 +117,7 @@ pub fn fit_to_work_area(app: &AppHandle) {
 /// desktop pet that has to sit on top of everything.
 #[cfg(target_os = "macos")]
 #[allow(unexpected_cfgs)]
-pub fn pin_above_everything(app: &AppHandle) {
+pub fn pin_above_everything(win: &WebviewWindow) {
     use objc::runtime::{Class, Object};
     use objc::{msg_send, sel, sel_impl};
     // libobjc; lets us re-class the live NSWindow into an NSPanel.
@@ -48,7 +125,6 @@ pub fn pin_above_everything(app: &AppHandle) {
         fn object_setClass(obj: *mut Object, cls: *const Class) -> *const Class;
     }
 
-    let Some(win) = app.get_webview_window("pet") else { return };
     let Ok(ptr) = win.ns_window() else { return };
     let ns = ptr as *mut Object;
     if ns.is_null() {
@@ -104,7 +180,7 @@ pub fn pin_above_everything(app: &AppHandle) {
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn pin_above_everything(_app: &AppHandle) {}
+pub fn pin_above_everything(_win: &WebviewWindow) {}
 
 /// Give the pet window real keyboard focus so the chat box can be typed into.
 ///
@@ -117,11 +193,10 @@ pub fn pin_above_everything(_app: &AppHandle) {}
 /// doesn't yank you out of a full-screen app.
 #[cfg(target_os = "macos")]
 #[allow(unexpected_cfgs)]
-pub fn focus_for_input(app: &AppHandle) {
+pub fn focus_for_input(win: &WebviewWindow) {
     use objc::runtime::{Class, Object};
     use objc::{msg_send, sel, sel_impl};
 
-    let Some(win) = app.get_webview_window("pet") else { return };
     let Ok(ptr) = win.ns_window() else { return };
     let ns = ptr as *mut Object;
     if ns.is_null() {
@@ -138,49 +213,34 @@ pub fn focus_for_input(app: &AppHandle) {
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn focus_for_input(_app: &AppHandle) {}
+pub fn focus_for_input(_win: &WebviewWindow) {}
 
 pub fn setup(app: &App) -> tauri::Result<()> {
     let handle = app.handle().clone();
-    fit_to_work_area(&handle);
-    if let Some(win) = app.get_webview_window("pet") {
+    // One overlay per monitor, each fitted + pinned.
+    reconcile_pets(&handle);
+    for win in pet_windows(&handle) {
         let _ = win.set_ignore_cursor_events(true);
-        win.show()?;
-        // The window level has to sit above ordinary windows or a maximized
-        // app paints over the overlay; alwaysOnTop is set in config but we
-        // reassert it here after show for good measure.
+        let _ = win.show();
         let _ = win.set_always_on_top(true);
-        // Devtools are opened only when DESKPAL_DEVTOOLS=1 — never automatically.
         #[cfg(debug_assertions)]
-        if std::env::var("DESKPAL_DEVTOOLS").is_ok() {
+        if win.label() == "pet" && std::env::var("DESKPAL_DEVTOOLS").is_ok() {
             win.open_devtools();
         }
     }
-    pin_above_everything(&handle);
-    // The monitor's work area can read as empty for the first instant after
-    // launch, which would leave the window at its default 900x600. Re-fit and
-    // re-pin a couple of times shortly after show. The native level/collection
-    // calls touch AppKit, which is main-thread only, so the work is dispatched
-    // back onto the main thread rather than run on this timer thread.
+    // A monitor's work area can read empty for the first instant after launch,
+    // and monitors can be plugged in or out at any time. Re-fit/re-pin a few
+    // times early, then reconcile forever every 2s. AppKit calls are main-thread
+    // only, so the work is dispatched back onto the main thread.
     {
         let h = handle.clone();
         std::thread::spawn(move || {
             let mut i = 0u32;
             loop {
-                // Fit a few times early (monitor size can read empty at first),
-                // then re-assert the window level forever every 2s — some apps
-                // reset other apps' always-on-top level when they activate, and
-                // this heals it so the pet keeps floating above them.
                 std::thread::sleep(Duration::from_millis(if i < 3 { 250 } else { 2000 }));
-                let first = i < 3;
                 i = i.saturating_add(1);
                 let h2 = h.clone();
-                let _ = h.run_on_main_thread(move || {
-                    if first {
-                        fit_to_work_area(&h2);
-                    }
-                    pin_above_everything(&h2);
-                });
+                let _ = h.run_on_main_thread(move || reconcile_pets(&h2));
             }
         });
     }
@@ -189,57 +249,55 @@ pub fn setup(app: &App) -> tauri::Result<()> {
 }
 
 fn hit_loop(app: AppHandle) {
-    let mut catching: Option<bool> = None;
+    let mut catching: std::collections::HashMap<String, bool> = std::collections::HashMap::new();
     let mut last_cursor = (f64::NAN, f64::NAN);
     let mut last_emit = Instant::now();
-    let mut last_fit = Instant::now();
     loop {
         std::thread::sleep(Duration::from_millis(25));
-        let Some(win) = app.get_webview_window("pet") else { continue };
-        if !win.is_visible().unwrap_or(false) {
-            continue;
-        }
-        // The Dock can be resized or moved; re-fit every few seconds.
-        if last_fit.elapsed() > Duration::from_secs(5) {
-            last_fit = Instant::now();
-            fit_to_work_area(&app);
-        }
-        let (Ok(cur), Ok(pos), Ok(scale)) = (app.cursor_position(), win.outer_position(), win.scale_factor()) else {
-            continue;
-        };
-        // Into the window's CSS-pixel space.
-        let lx = (cur.x - pos.x as f64) / scale;
-        let ly = (cur.y - pos.y as f64) / scale;
+        let Ok(cur) = app.cursor_position() else { continue };
+        let moved = (cur.x - last_cursor.0).abs() > 1.0 || (cur.y - last_cursor.1).abs() > 1.0;
+        let do_emit = moved && last_emit.elapsed() >= Duration::from_millis(50);
 
-        let inside = {
-            let state = app.state::<AppState>();
-            let h = state.hit.lock().unwrap();
-            h.hold || h.rects.iter().any(|r| r.contains(lx, ly))
-        };
-        if catching != Some(inside) {
-            catching = Some(inside);
-            let _ = win.set_ignore_cursor_events(!inside);
-        }
+        for win in pet_windows(&app) {
+            if !win.is_visible().unwrap_or(false) {
+                continue;
+            }
+            let (Ok(pos), Ok(scale)) = (win.outer_position(), win.scale_factor()) else { continue };
+            // Into this window's own CSS-pixel space (its own monitor).
+            let lx = (cur.x - pos.x as f64) / scale;
+            let ly = (cur.y - pos.y as f64) / scale;
+            let label = win.label().to_string();
 
-        // Feed the pointer to the pet ~20x a second (eyes follow, curiosity).
-        let moved = (lx - last_cursor.0).abs() > 1.0 || (ly - last_cursor.1).abs() > 1.0;
-        if moved && last_emit.elapsed() >= Duration::from_millis(50) {
-            last_cursor = (lx, ly);
+            let inside = {
+                let st = app.state::<AppState>();
+                let map = st.hit.lock().unwrap();
+                map.get(&label).map_or(false, |h| h.hold || h.rects.iter().any(|r| r.contains(lx, ly)))
+            };
+            if catching.get(&label).copied() != Some(inside) {
+                catching.insert(label, inside);
+                let _ = win.set_ignore_cursor_events(!inside);
+            }
+            if do_emit {
+                let _ = win.emit("cursor", Cursor { x: lx, y: ly });
+            }
+        }
+        if do_emit {
+            last_cursor = (cur.x, cur.y);
             last_emit = Instant::now();
-            let _ = win.emit("cursor", Cursor { x: lx, y: ly });
         }
     }
 }
 
 pub fn set_pet_visible(app: &AppHandle, visible: bool) {
-    if let Some(w) = app.get_webview_window("pet") {
+    app.state::<AppState>().visible.store(visible, Ordering::Relaxed);
+    for w in pet_windows(app) {
         let _ = if visible { w.show() } else { w.hide() };
-        let _ = app.emit("pet-visible", visible);
     }
+    let _ = app.emit("pet-visible", visible);
 }
 
 pub fn toggle_pet(app: &AppHandle) {
-    let visible = app.get_webview_window("pet").and_then(|w| w.is_visible().ok()).unwrap_or(false);
+    let visible = app.state::<AppState>().visible.load(Ordering::Relaxed);
     set_pet_visible(app, !visible);
 }
 

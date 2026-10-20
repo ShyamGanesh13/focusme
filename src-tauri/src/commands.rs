@@ -1,7 +1,7 @@
 //! Everything the two webviews can call.
 
 use crate::ask::{self, Answer, Command, Intent, Shape};
-use crate::state::{next_id, stamp, AppState, Config, Note, Rect, Reminder, Routine};
+use crate::state::{next_id, stamp, AppState, Config, HitState, Note, Rect, Reminder, Routine};
 use crate::{overlay, sys, weather, when};
 use chrono::{Duration, Local};
 use serde::Serialize;
@@ -35,25 +35,21 @@ pub fn save_config(app: AppHandle, state: State<AppState>, cfg: Config) {
 }
 
 #[tauri::command]
-pub fn set_hitbox(state: State<AppState>, rects: Vec<Rect>, hold: bool) {
-    let mut h = state.hit.lock().unwrap();
-    h.rects = rects;
-    h.hold = hold;
+pub fn set_hitbox(window: tauri::WebviewWindow, state: State<AppState>, rects: Vec<Rect>, hold: bool) {
+    // Each overlay window (one per monitor) reports its own hit rectangles.
+    state.hit.lock().unwrap().insert(window.label().to_string(), HitState { rects, hold });
 }
 
-/// Give the overlay keyboard focus so the chat box can be typed into.
+/// Give the pet window the user is on real keyboard focus so its chat box can
+/// be typed into. The calling window is injected by Tauri.
 #[tauri::command]
-pub fn focus_pet(app: AppHandle) {
-    if let Some(w) = app.get_webview_window("pet") {
-        let _ = w.set_ignore_cursor_events(false);
-    }
+pub fn focus_pet(window: tauri::WebviewWindow) {
+    let _ = window.set_ignore_cursor_events(false);
     // macOS: activate + makeKey so the non-activating panel accepts typing.
     #[cfg(target_os = "macos")]
-    overlay::focus_for_input(&app);
+    overlay::focus_for_input(&window);
     #[cfg(not(target_os = "macos"))]
-    if let Some(w) = app.get_webview_window("pet") {
-        let _ = w.set_focus();
-    }
+    let _ = window.set_focus();
 }
 
 #[tauri::command]

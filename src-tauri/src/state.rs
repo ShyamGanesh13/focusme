@@ -193,7 +193,12 @@ pub struct AppState {
     pub config: Mutex<Config>,
     pub notes: Mutex<Vec<Note>>,
     pub rt: Mutex<Runtime>,
-    pub hit: Mutex<HitState>,
+    /// Hit rectangles per overlay window (one window per monitor), keyed by
+    /// the window's label, so each screen's pet catches the mouse independently.
+    pub hit: Mutex<std::collections::HashMap<String, HitState>>,
+    /// Whether the pet is shown (the Hide/Show toggle), honored across monitors
+    /// and across the periodic monitor reconcile.
+    pub visible: std::sync::atomic::AtomicBool,
 }
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(0);
@@ -262,7 +267,8 @@ impl AppState {
                 bedtime_fired: None,
                 routine_last: std::collections::HashMap::new(),
             }),
-            hit: Mutex::new(HitState::default()),
+            hit: Mutex::new(std::collections::HashMap::new()),
+            visible: std::sync::atomic::AtomicBool::new(true),
         }
     }
 
