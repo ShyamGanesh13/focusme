@@ -55,21 +55,54 @@ fn fit_window_to_monitor(win: &WebviewWindow, m: &tauri::Monitor) {
 /// Make sure there is exactly one overlay window per monitor, each fitted and
 /// pinned. Creates windows for newly-attached monitors and closes ones whose
 /// monitor went away. Safe to call repeatedly (the monitor reconcile loop does).
+///
+/// The config "pet" window is kept on the PRIMARY monitor (it's already there,
+/// so it never has to move across displays — moving an already-shown overlay
+/// between Spaces is unreliable). Every other monitor gets a fresh pet-N window
+/// created in place.
 pub fn reconcile_pets(app: &AppHandle) {
+    use std::sync::atomic::{AtomicBool, AtomicUsize};
     let mons = app.available_monitors().unwrap_or_default();
+    if mons.is_empty() {
+        return;
+    }
     let visible = app.state::<AppState>().visible.load(Ordering::Relaxed);
 
-    for (i, m) in mons.iter().enumerate() {
+    // Order monitors primary-first so index 0 ("pet") is the primary display.
+    let primary = app.primary_monitor().ok().flatten();
+    let primary_pos = primary.as_ref().map(|m| *m.position());
+    let mut ordered: Vec<&tauri::Monitor> = Vec::new();
+    if let Some(p) = primary.as_ref() {
+        ordered.push(p);
+    }
+    for m in &mons {
+        if Some(*m.position()) != primary_pos {
+            ordered.push(m);
+        }
+    }
+    if ordered.is_empty() {
+        ordered.extend(mons.iter());
+    }
+
+    static FIRST: AtomicBool = AtomicBool::new(true);
+    let first = FIRST.swap(false, Ordering::Relaxed);
+
+    for (i, m) in ordered.iter().enumerate() {
         let label = pet_label(i);
         match app.get_webview_window(&label) {
             Some(w) => {
                 fit_window_to_monitor(&w, m);
                 pin_above_everything(&w);
+                if first {
+                    eprintln!("[focusme/overlay] {label}: target monitor pos={:?} size={:?} -> window at {:?} size {:?}",
+                        m.position(), m.size(), w.outer_position().ok(), w.outer_size().ok());
+                }
             }
             None => {
                 let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("pet.html".into()))
                     .title("FocusMe")
                     .inner_size(900.0, 600.0)
+                    .position(m.work_area().position.x as f64 / m.scale_factor(), m.work_area().position.y as f64 / m.scale_factor())
                     .transparent(true)
                     .decorations(false)
                     .always_on_top(true)
@@ -89,7 +122,8 @@ pub fn reconcile_pets(app: &AppHandle) {
                             let _ = w.show();
                         }
                         pin_above_everything(&w);
-                        eprintln!("[focusme/overlay] created {label} on monitor {:?}", m.position());
+                        eprintln!("[focusme/overlay] created {label}: target pos={:?} -> window at {:?} size {:?}",
+                            m.position(), w.outer_position().ok(), w.outer_size().ok());
                     }
                     Err(e) => eprintln!("[focusme/overlay] could not create {label}: {e}"),
                 }
@@ -98,13 +132,19 @@ pub fn reconcile_pets(app: &AppHandle) {
     }
 
     // Close overlays for monitors that are no longer present (keep "pet").
-    let n = mons.len().max(1);
+    let n = ordered.len().max(1);
     for w in pet_windows(app) {
         if w.label() != "pet" && pet_index(w.label()) >= n {
             let _ = w.close();
         }
     }
-    eprintln!("[focusme/overlay] monitors={} overlays={}", mons.len(), pet_windows(app).len());
+
+    // Log the summary only when the overlay count changes (not every 2s).
+    static LAST: AtomicUsize = AtomicUsize::new(usize::MAX);
+    let count = pet_windows(app).len();
+    if LAST.swap(count, Ordering::Relaxed) != count {
+        eprintln!("[focusme/overlay] monitors={} overlays={}", mons.len(), count);
+    }
 }
 
 /// Keep the overlay above the app you're actually using.
