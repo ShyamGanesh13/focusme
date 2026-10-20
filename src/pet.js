@@ -50,6 +50,23 @@ const EDGE_GAP = 16;
 const roamMax = () => Math.max(0, maxX() - EDGE_GAP);
 const roamMin = () => Math.max(0, roamMax() - 3.0 * W);
 
+// ------------------------------------------------------------ peek mode
+// When on, the pet rests hidden just below the bottom edge and only slides up
+// for a nudge (reminder/routine/water/timer), the chat, or the menu — then
+// slides away. `shown` eases 0 (tucked away) → 1 (standing in the corner).
+let peekMode = !!cfg.pet.peek;
+let shown = peekMode ? 0 : 1;
+let peekUntil = 0; // performance.now() timestamp to stay out until
+const PEEK = { nudge: 9000, long: 12000, quick: 1400 };
+function peekFor(ms) {
+  if (peekMode) peekUntil = Math.max(peekUntil, performance.now() + ms);
+}
+function wantShown() {
+  if (!peekMode) return 1;
+  if (!chatEl.hidden || !menuEl.hidden) return 1;
+  return performance.now() < peekUntil ? 1 : 0;
+}
+
 function applySize() {
   const s = clamp(Number(cfg.pet.scale) || 1, 0.4, 3);
   H = BASE_H * s;
@@ -66,7 +83,8 @@ function applySize() {
 }
 
 function place() {
-  petEl.style.transform = `translate(${x}px, ${petTop()}px)`;
+  const drop = (1 - shown) * (H + 60); // how far below the floor while hidden
+  petEl.style.transform = `translate(${x}px, ${petTop() + drop}px)`;
   artEl.style.transform = `translateY(${-bob}px) rotate(${tilt}deg) scaleX(${facing * sx}) scaleY(${sy})`;
 }
 
@@ -80,7 +98,9 @@ let hold = false;
 let lastHit = "";
 function hitRects() {
   const pad = 6;
-  const rects = [{ x: x - pad, y: petTop() - pad, w: W + pad * 2, h: H + pad * 2 }];
+  // While tucked away (peek mode), the pet catches no clicks — the whole
+  // overlay stays click-through so nothing underneath is blocked.
+  const rects = shown > 0.6 ? [{ x: x - pad, y: petTop() - pad, w: W + pad * 2, h: H + pad * 2 }] : [];
   for (const el of [chatEl, menuEl, badgeEl.hidden ? null : badgeEl, bubbleEl.classList.contains("clickable") ? bubbleEl : null]) {
     if (el && !el.hidden) {
       const r = el.getBoundingClientRect();
@@ -172,6 +192,12 @@ function frame(now) {
     sy += (1 - sy) * 0.2;
   }
 
+  // Peek: ease toward hidden/shown, and clear a lingering bubble as it leaves.
+  const target = wantShown();
+  shown += (target - shown) * clamp(dt * 9, 0, 1);
+  if (Math.abs(shown - target) < 0.002) shown = target;
+  if (peekMode && target === 0 && chatEl.hidden && !bubbleEl.hidden) hush();
+
   place();
   sendHit();
   requestAnimationFrame(frame);
@@ -199,7 +225,7 @@ function say(text, { ms = 3800, small = "", alert = false, clickable = false, fo
       const b = document.createElement("button");
       b.type = "button";
       b.textContent = a.label;
-      b.addEventListener("click", (e) => { e.stopPropagation(); try { a.act(); } catch (_) {} hush(); });
+      b.addEventListener("click", (e) => { e.stopPropagation(); try { a.act(); } catch (_) {} hush(); if (peekMode) peekUntil = performance.now() + PEEK.quick; });
       row.appendChild(b);
     });
     bubbleEl.appendChild(row);
@@ -217,7 +243,7 @@ function hush() {
   sendHit(true);
 }
 // Clicking the bubble dismisses it only when it has no action buttons.
-bubbleEl.addEventListener("click", () => { if (!bubbleEl.querySelector(".bub-actions")) hush(); });
+bubbleEl.addEventListener("click", () => { if (!bubbleEl.querySelector(".bub-actions")) { hush(); if (peekMode) peekUntil = performance.now() + PEEK.quick; } });
 
 function spawn(kind, text) {
   const s = document.createElement("span");
@@ -259,6 +285,8 @@ async function brain() {
   const mine = interrupt();
   mode = "idle";
   setBreathe(true);
+  // Peek mode: no wandering or dozing — rest tucked in the corner until a nudge.
+  if (peekMode) { x = roamMax(); return; }
   await pause(400, mine);
   // If a drag left the pet outside its corner zone, amble back into it first.
   if (x < roamMin() - 2 || x > roamMax() + 2) {
@@ -429,6 +457,7 @@ function openChat() {
 function closeChat(resume = true) {
   chatEl.hidden = true;
   chatInput.blur();
+  if (peekMode) peekUntil = performance.now() + 500; // slide away shortly after
   sendHit(true);
   if (resume) brain();
 }
@@ -577,11 +606,13 @@ badgeEl.addEventListener("click", (e) => {
 });
 listen("session-started", ({ payload: m }) => {
   touched();
+  peekFor(5000);
   say(`Focus time — ${m} min. I'll keep watch.`);
 });
 listen("session-stopped", () => { badgeEl.hidden = true; });
 listen("session-busy", () => {
   touched();
+  peekFor(PEEK.nudge);
   say("You're already in a focus session.", {
     ms: 0, alert: true,
     actions: [
@@ -590,26 +621,27 @@ listen("session-busy", () => {
     ],
   });
 });
-listen("session-paused", () => say("Focus paused.", { ms: 2500 }));
-listen("session-resumed", () => say("Back to it.", { ms: 2000 }));
+listen("session-paused", () => { peekFor(3000); say("Focus paused.", { ms: 2500 }); });
+listen("session-resumed", () => { peekFor(2500); say("Back to it.", { ms: 2000 }); });
 listen("session-done", () => {
   badgeEl.hidden = true;
   if (cfg.session.chime) chime("done");
   forcedSleep = false;
   touched();
   pat();
-  setTimeout(() => say("Session done! Take a short break.", {
+  setTimeout(() => { peekFor(PEEK.long); say("Session done! Take a short break.", {
     ms: 0, alert: true,
     actions: [
       { label: "Another " + (cfg.session.minutes || 25), act: () => invoke("start_session", {}) },
       { label: "Done", act: () => {} },
     ],
-  }), 650);
+  }); }, 650);
 });
 listen("reminder", ({ payload: r }) => {
   chime("remind");
   forcedSleep = false;
   touched();
+  peekFor(PEEK.nudge);
   brain();
   say(r.text, {
     ms: 0, alert: true, small: "Reminder",
@@ -621,6 +653,7 @@ listen("reminder", ({ payload: r }) => {
 });
 listen("water", () => {
   touched();
+  peekFor(PEEK.nudge);
   char && char.wave(1);
   say("Time for a sip of water 💧", {
     ms: 0, alert: true,
@@ -635,6 +668,7 @@ listen("routine", ({ payload: r }) => {
   chime("remind");
   forcedSleep = false;
   touched();
+  peekFor(PEEK.nudge);
   brain();
   say(r.label, {
     ms: 0, alert: true, small: "Routine",
@@ -646,13 +680,17 @@ listen("routine", ({ payload: r }) => {
   });
 });
 listen("bedtime", () => {
+  peekFor(6500);
   say("It's getting late. Goodnight!", { ms: 6000 });
 });
 listen("cursor", ({ payload }) => onCursor(payload));
 listen("open-chat", () => openChat());
 listen("config-changed", ({ payload }) => {
   cfg = payload;
+  const wasPeek = peekMode;
+  peekMode = !!cfg.pet.peek;
   applySize();
+  if (peekMode !== wasPeek) { peekUntil = 0; brain(); } // re-park or resume roaming
 });
 listen("character-changed", () => mountCharacter());
 listen("pet-visible", ({ payload: v }) => { if (v) brain(); });
@@ -684,7 +722,10 @@ setBreathe(true);
 place();
 log("pet mounted", { W, H, x, innerW: window.innerWidth, innerH: window.innerHeight });
 requestAnimationFrame(frame);
-setTimeout(() => {
-  const name = (cfg.pet.userName || "").trim();
-  say(name ? `Hi ${name}! Double-click me to chat.` : "Hi! Double-click me to chat.", { ms: 5000 });
-}, 900);
+// In peek mode the pet stays tucked away until a nudge; no launch greeting.
+if (!peekMode) {
+  setTimeout(() => {
+    const name = (cfg.pet.userName || "").trim();
+    say(name ? `Hi ${name}! Double-click me to chat.` : "Hi! Double-click me to chat.", { ms: 5000 });
+  }, 900);
+}

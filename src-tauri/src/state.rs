@@ -27,11 +27,15 @@ pub struct PetCfg {
     pub sleepy: bool,
     /// Eyes follow the mouse pointer (needs a `pupils` part in the SVG).
     pub follow: bool,
+    /// Peek mode: stay hidden off-screen and only slide up for a nudge
+    /// (reminder, routine, water, timer end), then slide away.
+    #[serde(default = "default_true")]
+    pub peek: bool,
 }
 
 impl Default for PetCfg {
     fn default() -> Self {
-        Self { user_name: String::new(), scale: 1.0, speed: 1.0, wander: true, sleepy: true, follow: true }
+        Self { user_name: String::new(), scale: 1.0, speed: 1.0, wander: true, sleepy: true, follow: true, peek: true }
     }
 }
 

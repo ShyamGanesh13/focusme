@@ -32,6 +32,7 @@ const binds = [
   ["userName", "value", () => cfg.pet.userName, (v) => (cfg.pet.userName = v.trim())],
   ["scale", "value", () => cfg.pet.scale, (v) => (cfg.pet.scale = num(v, 0.5, 2, 1))],
   ["speed", "value", () => cfg.pet.speed, (v) => (cfg.pet.speed = num(v, 0.5, 2, 1))],
+  ["peek", "checked", () => cfg.pet.peek, (v) => (cfg.pet.peek = v)],
   ["wander", "checked", () => cfg.pet.wander, (v) => (cfg.pet.wander = v)],
   ["sleepy", "checked", () => cfg.pet.sleepy, (v) => (cfg.pet.sleepy = v)],
   ["follow", "checked", () => cfg.pet.follow, (v) => (cfg.pet.follow = v)],
