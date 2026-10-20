@@ -190,8 +190,11 @@ pub fn pin_above_everything(win: &WebviewWindow) {
         // non-activating panel with the behavior below is the one kind of
         // window macOS lets hover over other apps' full-screen Spaces, and it
         // does so without stealing focus from the app underneath.
-        if let Some(panel) = Class::get("NSPanel") {
-            let pcls: *const Class = panel;
+        // Re-class into our NSPanel subclass, not plain NSPanel: a borderless
+        // NSPanel answers NO to canBecomeKeyWindow, so the chat box could
+        // never receive keystrokes (Tao's own window class, which said YES, is
+        // what we're replacing).
+        if let Some(pcls) = panel_class() {
             let is_panel: bool = msg_send![ns, isKindOfClass: pcls];
             if !is_panel {
                 object_setClass(ns, pcls);
@@ -211,16 +214,43 @@ pub fn pin_above_everything(win: &WebviewWindow) {
         if !LOGGED.swap(true, Ordering::Relaxed) {
             let lvl: isize = msg_send![ns, level];
             let beh: usize = msg_send![ns, collectionBehavior];
-            let is_panel: bool = Class::get("NSPanel")
-                .map(|p| { let pc: *const Class = p; msg_send![ns, isKindOfClass: pc] })
-                .unwrap_or(false);
-            eprintln!("[focusme/overlay] applied level={lvl} behavior={beh} panel={is_panel}");
+            let is_panel: bool = panel_class().map(|pc| msg_send![ns, isKindOfClass: pc]).unwrap_or(false);
+            let can_key: bool = msg_send![ns, canBecomeKeyWindow];
+            eprintln!("[focusme/overlay] applied level={lvl} behavior={beh} panel={is_panel} canKey={can_key}");
         }
     }
 }
 
 #[cfg(not(target_os = "macos"))]
 pub fn pin_above_everything(_win: &WebviewWindow) {}
+
+#[allow(unexpected_cfgs)]
+/// `FocusMePanel`: an NSPanel that can become key (so the chat box takes
+/// typing) but never main. Registered once with the ObjC runtime.
+#[cfg(target_os = "macos")]
+fn panel_class() -> Option<&'static objc::runtime::Class> {
+    use objc::declare::ClassDecl;
+    use objc::runtime::{Class, Object, Sel, BOOL, NO, YES};
+    use objc::{sel, sel_impl};
+    use std::sync::OnceLock;
+
+    extern "C" fn yes(_: &Object, _: Sel) -> BOOL { YES }
+    extern "C" fn no(_: &Object, _: Sel) -> BOOL { NO }
+
+    static CLS: OnceLock<usize> = OnceLock::new();
+    let p = *CLS.get_or_init(|| {
+        let Some(sup) = Class::get("NSPanel") else { return 0 };
+        let Some(mut d) = ClassDecl::new("FocusMePanel", sup) else {
+            return Class::get("FocusMePanel").map_or(0, |c| c as *const Class as usize);
+        };
+        unsafe {
+            d.add_method(sel!(canBecomeKeyWindow), yes as extern "C" fn(&Object, Sel) -> BOOL);
+            d.add_method(sel!(canBecomeMainWindow), no as extern "C" fn(&Object, Sel) -> BOOL);
+        }
+        d.register() as *const Class as usize
+    });
+    (p != 0).then(|| unsafe { &*(p as *const Class) })
+}
 
 /// Give the pet window real keyboard focus so the chat box can be typed into.
 ///
