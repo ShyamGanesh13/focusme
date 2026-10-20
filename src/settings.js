@@ -258,7 +258,7 @@ async function renderNotes() {
   if (!notes.length) {
     const e = document.createElement("div");
     e.className = "empty";
-    e.textContent = "No notes yet. Double-click the pet and type one.";
+    e.textContent = "No notes yet. Triple-tap the pet and type one.";
     list.appendChild(e);
     return;
   }

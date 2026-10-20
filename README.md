@@ -1,7 +1,7 @@
 # FocusMe · DeskPal
 
 A desktop companion for **macOS** that floats over everything — including other apps'
-full-screen Spaces — on **every monitor**. Double-click it to chat: ask about your battery,
+full-screen Spaces — on **every monitor**. Triple-tap it to chat: ask about your battery,
 memory, disk, CPU or the weather. You can also start a focus timer, set reminders, or jot a
 note. It wanders, naps, waves, and drops back down when you drag it into the air.
 
@@ -39,8 +39,9 @@ Its menu-bar icon has Talk, Focus, Show/Hide, Settings and Quit.
 
 | Do this | It does |
 |---|---|
-| Double-click the pet | Opens the chat box |
-| Click it | A happy hop |
+| Click it | A hop and a 😎 |
+| Double-click it | Says hello and wishes you a good day |
+| Triple-click it | Opens the chat box |
 | Drag it | Picks it up; let go and it falls back down |
 | Right-click it | Opens a quick menu |
 

@@ -328,7 +328,7 @@ function onCursor(p) {
 
 // ------------------------------------------------------------ grab, drop, pat
 let press = null;
-let clickTimer = null;
+let clickTimer = null, taps = 0;
 
 artEl.addEventListener("pointerdown", (e) => {
   if (e.button !== 0) return;
@@ -373,18 +373,23 @@ function endPress(e) {
     if (lift > 2) { mode = "fall"; vy = 0; vx = clamp(vx, -900, 900); }
     else land();
   } else if (e.type === "pointerup") {
+    // 1 tap = 😎, 2 = hello, 3 = chat. Wait briefly to see if more taps follow.
     clearTimeout(clickTimer);
-    clickTimer = setTimeout(pat, 260); // a double-click cancels this
+    if (++taps >= 3) { taps = 0; openChat(); return; }
+    clickTimer = setTimeout(() => { const n = taps; taps = 0; n === 1 ? pat() : greet(); }, 280);
   }
 }
 artEl.addEventListener("pointerup", endPress);
 artEl.addEventListener("pointercancel", endPress);
 
-artEl.addEventListener("dblclick", (e) => {
-  e.preventDefault();
-  clearTimeout(clickTimer);
-  openChat();
-});
+artEl.addEventListener("dblclick", (e) => e.preventDefault());
+
+function greet() {
+  pat(false);
+  const name = (cfg.pet.userName || "").trim();
+  say(`Hello${name ? " " + name : ""}! Have a good day ☀️`, { ms: 3000 });
+  char && char.wave(2);
+}
 
 function land() {
   mode = "idle";
@@ -396,21 +401,19 @@ function land() {
   setTimeout(brain, 450);
 }
 
-const PAT_LINES = ["Hehe.", "That tickles!", "Hi!", "♪", "Thanks!"];
-async function pat() {
+async function pat(cool = true) {
   const wasSleeping = mode === "sleep";
   interrupt();
   forcedSleep = false;
   touched();
   petEl.classList.remove("sleeping");
   char && char.setEyes(1);
-  spawn("heart", "♥");
+  if (cool) spawn("cool", "😎");
   rigEl.animate(
     [{ transform: "translateY(0)" }, { transform: "translateY(-16px) scale(0.98,1.03)" }, { transform: "translateY(0) scale(1.06,0.94)" }, { transform: "translateY(0)" }],
     { duration: 480, easing: "ease-out" }
   );
-  if (wasSleeping) say("Oh! I'm up, I'm up.");
-  else if (Math.random() < 0.35) say(PAT_LINES[Math.floor(Math.random() * PAT_LINES.length)], { ms: 1800 });
+  if (wasSleeping && cool) say("Oh! I'm up, I'm up.");
   setTimeout(brain, 600);
 }
 
@@ -824,6 +827,6 @@ requestAnimationFrame(frame);
 if (!peekMode) {
   setTimeout(() => {
     const name = (cfg.pet.userName || "").trim();
-    say(name ? `Hi ${name}! Double-click me to chat.` : "Hi! Double-click me to chat.", { ms: 5000 });
+    say(name ? `Hi ${name}! Triple-tap me to chat.` : "Hi! Triple-tap me to chat.", { ms: 5000 });
   }, 900);
 }

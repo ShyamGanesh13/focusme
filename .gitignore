@@ -10,3 +10,4 @@ _to_delete/
 
 .DS_Store
 *.log
+.fuse_hidden*

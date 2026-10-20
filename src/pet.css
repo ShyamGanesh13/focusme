@@ -126,6 +126,7 @@ html, body {
   animation: rise 1.6s ease-out forwards;
 }
 .fx.heart { color: #ff5d8f; }
+.fx.cool { font-size: 28px; }
 .fx.z { color: #e6ecf5; font-family: ui-monospace, Menlo, monospace; text-shadow: 0 1px 3px rgba(0, 0, 0, .4); animation-duration: 2.6s; }
 @keyframes rise {
   0% { transform: translate(0, 0) scale(.6); opacity: 0; }
