@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# Build FocusMe as a real macOS app, install it to /Applications, and launch it.
-# Falls back to ~/Applications when /Applications isn't writable (some managed
-# Macs block it until the terminal gets "App Management" permission).
+# Build FocusMe as a real macOS app, install it to ~/Applications, and launch it.
+# (~/Applications, not /Applications: it never needs admin rights or the
+# "App Management" permission, which some managed Macs only grant temporarily.)
 # After this you never need a terminal again: FocusMe runs in the menu bar as a
 # background app, survives closing the terminal, and (with "Open at login" on,
 # the default) relaunches after a restart.
@@ -17,10 +17,7 @@ cd "$(dirname "$0")/.."
 
 APP_NAME="FocusMe.app"
 BUNDLE="src-tauri/target/release/bundle/macos/$APP_NAME"
-DIR="/Applications"
-if ! { touch "$DIR/.focusme-write-test" && rm -f "$DIR/.focusme-write-test"; } 2>/dev/null; then
-  DIR="$HOME/Applications"
-fi
+DIR="$HOME/Applications"
 DEST="$DIR/$APP_NAME"
 
 echo "▶ Building $APP_NAME (release) — this takes a few minutes the first time…"
@@ -40,14 +37,12 @@ sleep 1
 echo "▶ Installing to $DEST…"
 mkdir -p "$DIR"
 rm -rf "$DEST"
-# Only one installed copy, so the login item and Spotlight find the right one.
-# (Never touch /Applications when it isn't writable: rm there can half-succeed
-# and leave an empty, broken FocusMe.app behind.)
-if [ "$DIR" = "/Applications" ]; then rm -rf "$HOME/Applications/$APP_NAME"; fi
 cp -R "$BUNDLE" "$DEST"
 
 echo "▶ Launching the new build…"
 open -n "$DEST"
+
+[ -d "/Applications/$APP_NAME" ] && echo "ℹ An older copy is in /Applications — drag it to the Trash when you can (needs admin)."
 
 cat <<'DONE'
 

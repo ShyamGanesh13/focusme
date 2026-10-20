@@ -13,11 +13,11 @@ bundle id `com.shyamganesh.deskpal`.
 npm run dev                   # dev build (foreground; rebuilds on save)
 cd src-tauri && cargo test    # 17 unit tests (ask.rs parsers, scheduler windows, sys)
 npm run build                 # release .app + .dmg in src-tauri/target/release/bundle
-./scripts/install-mac.sh      # build + install to /Applications + relaunch (the "ship it" path)
+./scripts/install-mac.sh      # build + install to ~/Applications + relaunch (the "ship it" path)
 npm run preview               # frontend only, in a browser, against lib/bridge.js mock
 ```
 
-The installed `/Applications/FocusMe.app` is a frozen build — re-run `install-mac.sh`
+The installed `~/Applications/FocusMe.app` is a frozen build — re-run `install-mac.sh`
 to update it. Unsigned, so first launch may need right-click → Open.
 
 ## Architecture
