@@ -103,6 +103,8 @@ export const listen = T
       listeners.get(name).push(fn);
       return () => listeners.set(name, listeners.get(name).filter((f) => f !== fn));
     };
+// App-wide: reaches every window (each monitor's pet), including this one.
+export const emit = T ? T.event.emit : async (name, payload) => mockEmit(name, payload);
 
 /** Load the user's SVG if they set one, else the bundled placeholder. */
 export async function loadCharacterSvg() {

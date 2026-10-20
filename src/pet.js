@@ -9,7 +9,7 @@
 // pet (a drag, a click, the chat box) bumps it, and whatever was running
 // unwinds on its next check instead of fighting the new behaviour.
 
-import { invoke, listen, inTauri, loadCharacterSvg } from "./lib/bridge.js";
+import { invoke, listen, emit, inTauri, loadCharacterSvg } from "./lib/bridge.js";
 import { Character } from "./lib/character.js";
 import { chime } from "./lib/chime.js";
 
@@ -226,7 +226,7 @@ function say(text, { ms = 3800, small = "", alert = false, clickable = false, fo
       const b = document.createElement("button");
       b.type = "button";
       b.textContent = a.label;
-      b.addEventListener("click", (e) => { e.stopPropagation(); try { a.act(); } catch (_) {} hush(); if (peekMode) peekUntil = performance.now() + PEEK.quick; });
+      b.addEventListener("click", (e) => { e.stopPropagation(); try { a.act(); } catch (_) {} dismissEverywhere(); });
       row.appendChild(b);
     });
     bubbleEl.appendChild(row);
@@ -244,7 +244,17 @@ function hush() {
   sendHit(true);
 }
 // Clicking the bubble dismisses it only when it has no action buttons.
-bubbleEl.addEventListener("click", () => { if (!bubbleEl.querySelector(".bub-actions")) { hush(); if (peekMode) peekUntil = performance.now() + PEEK.quick; } });
+bubbleEl.addEventListener("click", () => { if (!bubbleEl.querySelector(".bub-actions")) dismissEverywhere(); });
+
+// Every monitor's pet shows the same nudge, so answering it on one dismisses it on all.
+function dismissEverywhere() {
+  emit("nudge-dismissed").catch(() => dismissed());
+}
+function dismissed() {
+  hush();
+  if (peekMode) peekUntil = performance.now() + PEEK.quick;
+}
+listen("nudge-dismissed", dismissed);
 
 function spawn(kind, text) {
   const s = document.createElement("span");
