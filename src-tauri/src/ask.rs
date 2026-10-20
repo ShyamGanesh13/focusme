@@ -271,14 +271,13 @@ pub fn help() -> Answer {
     Answer::answer(
         "Here's what I understand",
         vec![
-            "battery?  memory?  cpu?  disk?  uptime?  internet?".into(),
-            "weather?  ·  weather in Chennai?".into(),
-            "timer?  notes?  reminders?  time?".into(),
-            "/timer 25  ·  /stop  ·  /remind call Kavi at 5pm".into(),
-            "/every 2h stand and stretch  ·  a repeating nudge".into(),
-            "/daily 11:30 chia seeds  ·  a reminder at the same time each day".into(),
-            "/water 10  ·  a drink-water nudge every 10 min  (/water off)".into(),
-            "/sleep  ·  /hide  ·  /settings  ·  /quit".into(),
+            "Ask: battery?  memory?  cpu?  disk?  uptime?  internet?".into(),
+            "weather?  ·  weather in Chennai?  ·  time?  ·  notes?  ·  reminders?".into(),
+            "Focus: /timer 25  ·  /stop".into(),
+            "Remind once: /remind call Kavi at 5pm".into(),
+            "Every day: /daily 11:30 chia seeds  ·  /daily 3:30pm ABC milk".into(),
+            "On a cycle: /every 2h stand and stretch  ·  /water 30  (/water off)".into(),
+            "/note buy milk  ·  /sleep  ·  /hide  ·  /settings  ·  /quit".into(),
             "Anything else you type is saved as a note.".into(),
         ],
     )
