@@ -63,6 +63,7 @@ function peekFor(ms) {
 }
 function wantShown() {
   if (!peekMode) return 1;
+  if (sessionActive) return 1;                 // stay out through a focus session (timer visible)
   if (!chatEl.hidden || !menuEl.hidden) return 1;
   return performance.now() < peekUntil ? 1 : 0;
 }
