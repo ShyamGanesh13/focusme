@@ -85,7 +85,9 @@ const mock = (() => {
       case "start_session": { const m = args.minutes || cfg.session.minutes; sessionEnd = Date.now() + m * 60000; sessionTotal = m * 60; mockEmit("session-started", m); return null; }
       case "stop_session": sessionEnd = 0; mockEmit("session-stopped"); return null;
       case "get_character": return character;
-      case "set_character": character = args.svg; mockEmit("character-changed"); return null;
+      case "set_character":
+        if (args.svg.length > 2 * 1024 * 1024) throw "That SVG is over 2 MB — please simplify it."; // same as Rust
+        character = args.svg; mockEmit("character-changed"); return null;
       case "reset_character": character = null; mockEmit("character-changed"); return null;
       case "app_version": return "0.1.0 (browser preview)";
       case "autostart_get": return false;

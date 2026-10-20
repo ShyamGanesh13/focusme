@@ -89,9 +89,15 @@ $("charFile").addEventListener("change", async (e) => {
     if (!isSvg && f.size > 20 * 1024 * 1024) throw new Error("That image is over 20 MB — please use a smaller one.");
     let text = isSvg ? await f.text() : await rasterToSvg(f);
     sanitizeSvg(text); // throws if it isn't an SVG
-    text = await knockOutBackgrounds(text);
-    await showCharacter(text);
-    await invoke("set_character", { svg: text });
+    // Shrink embedded pictures until the result fits the 2 MB save limit.
+    let out = text;
+    for (const px of [900, 700, 500, 350]) {
+      out = await knockOutBackgrounds(text, px);
+      if (out.length <= MAX_SAVE) break;
+    }
+    if (out.length > MAX_SAVE) throw new Error("That picture is too detailed to fit in 2 MB, even shrunk. Try a simpler image.");
+    await invoke("set_character", { svg: out }); // save first, so a failure leaves the preview on the real character
+    await showCharacter(out);
     $("saved").textContent = "Character updated";
   } catch (err) {
     $("charErr").textContent = String(err.message || err);
@@ -102,7 +108,7 @@ $("charFile").addEventListener("change", async (e) => {
 // Many "transparent" PNGs (AI stickers especially) actually have a painted
 // checkerboard or white backdrop. Erase light, grey-ish pixels connected to the
 // image edge; the figure's outline stops the fill so its insides are kept.
-const MAX_PX = 900; // pet is at most 420pt tall; 900px stays sharp on Retina and under 2 MB
+const MAX_SAVE = 2 * 1024 * 1024; // matches MAX_SVG_BYTES in commands.rs
 
 async function rasterToSvg(file) {
   const url = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(file); });
@@ -114,12 +120,14 @@ function loadImg(src) {
   return new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error("Couldn't read that image.")); i.src = src; });
 }
 
-async function knockOutBackgrounds(svgText) {
+// maxPx: longest side for embedded pictures. The pet is at most 420pt tall, so
+// 900px stays sharp on Retina; smaller is used only when 900 won't fit 2 MB.
+async function knockOutBackgrounds(svgText, maxPx) {
   const doc = new DOMParser().parseFromString(svgText, "image/svg+xml");
   const imgs = [...doc.querySelectorAll("image")].filter((el) => /^data:image\/(png|jpe?g|webp)/.test(el.getAttribute("href") || el.getAttribute("xlink:href") || ""));
   if (!imgs.length) return svgText;
   for (const el of imgs) {
-    const out = await clearBackdrop(el.getAttribute("href") || el.getAttribute("xlink:href"));
+    const out = await clearBackdrop(el.getAttribute("href") || el.getAttribute("xlink:href"), maxPx);
     if (out) { el.removeAttribute("xlink:href"); el.setAttribute("href", out); }
   }
   doc.querySelectorAll("metadata").forEach((m) => m.remove()); // drop bulky C2PA blobs
@@ -127,9 +135,9 @@ async function knockOutBackgrounds(svgText) {
 }
 
 // Returns a new PNG data URL, or null when the picture already has real transparency.
-async function clearBackdrop(src) {
+async function clearBackdrop(src, maxPx) {
   const img = await loadImg(src);
-  const k = Math.min(1, MAX_PX / Math.max(img.naturalWidth, img.naturalHeight));
+  const k = Math.min(1, maxPx / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.round(img.naturalWidth * k), h = Math.round(img.naturalHeight * k);
   const cv = document.createElement("canvas");
   cv.width = w; cv.height = h;
