@@ -55,7 +55,18 @@ const mock = (() => {
       if (/battery/i.test(t)) return { kind: "answer", title: "Battery 72%, about 3h 10m left", lines: [] };
       if (/memory|ram/i.test(t)) return { kind: "answer", title: "Google Chrome 2.1 GB, Code 1.4 GB, Slack 0.6 GB", lines: ["11.2 GB of 16.0 GB in use (70%)"] };
       if (/weather|rain/i.test(t)) return { kind: "answer", title: "Chennai, Tamil Nadu: 31°C, partly cloudy", lines: ["Feels like 36°C · humidity 70% · wind 14 km/h", "Today 27°C to 33°C, 40% chance of rain"] };
-      return { kind: "error", title: "I don't know that one yet.", lines: ["Try: battery? memory? weather?"] };
+      if (/timer|session|focus/i.test(t)) {
+        const left = sessionEnd ? Math.max(0, Math.round((sessionEnd - Date.now()) / 60000)) : null;
+        return { kind: "answer", title: left === null ? "No focus session running." : `${left} min left in this session.`, lines: left === null ? ["Start one with /timer 25"] : [] };
+      }
+      if (/cpu|slow/i.test(t)) return { kind: "answer", title: "CPU 23% busy", lines: ["Google Chrome 12%, Code 6%"] };
+      if (/disk|storage/i.test(t)) return { kind: "answer", title: "182 GB free of 494 GB", lines: [] };
+      if (/internet|online/i.test(t)) return { kind: "answer", title: "You're online.", lines: [] };
+      if (/uptime/i.test(t)) return { kind: "answer", title: "Up 3 days, 4 hours", lines: [] };
+      if (/reminder/i.test(t)) return { kind: "answer", title: cfg.reminders.length ? `${cfg.reminders.length} reminders` : "No reminders set.", lines: [] };
+      if (/note/i.test(t)) return { kind: "answer", title: notes.length ? `${notes.length} notes` : "No notes yet.", lines: notes.slice(-3).map((n) => n.text) };
+      if (/time|date/i.test(t)) return { kind: "answer", title: new Date().toLocaleString(), lines: [] };
+      return { kind: "error", title: "I don't know that one yet.", lines: ["Try: battery? memory? weather? disk? timer?"] };
     }
     notes.push({ id: Date.now(), text: t, at: stamp() });
     mockEmit("notes-changed");

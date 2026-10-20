@@ -421,9 +421,93 @@ function shapeOf(t) {
   if (t.endsWith("?") || /^(hi|hello|hey|hiya|yo|help)\b/i.test(t)) return "ask";
   return "note";
 }
+// Autocomplete: "/" lists commands, "?" lists questions. [label, example args, what it does]
+// Keep in sync with ask.rs (`command`, `intent`, `help`).
+const COMMANDS = [
+  ["/timer", "25", "Start a focus session (minutes)"],
+  ["/stop", "", "End the focus session"],
+  ["/remind", "call Kavi at 5pm", "Remind me once"],
+  ["/daily", "11:30 chia seeds", "Remind me at the same time every day"],
+  ["/every", "2h stand and stretch", "Repeat on an interval"],
+  ["/water", "30", "Drink-water nudge every N min (or off)"],
+  ["/note", "buy milk", "Save a note"],
+  ["/sleep", "", "Take a nap"],
+  ["/hide", "", "Hide the pet"],
+  ["/settings", "", "Open Settings"],
+  ["/help", "", "Everything I understand"],
+  ["/quit", "", "Quit FocusMe"],
+];
+const QUESTIONS = [
+  ["battery?", "Charge and power"],
+  ["memory?", "RAM use and top apps"],
+  ["cpu?", "Processor load"],
+  ["disk?", "Free storage"],
+  ["weather?", "Weather where you are"],
+  ["weather in ?", "Weather somewhere else"],
+  ["internet?", "Am I online?"],
+  ["uptime?", "Time since restart"],
+  ["time?", "Current time"],
+  ["timer?", "Focus session left"],
+  ["reminders?", "Upcoming reminders"],
+  ["notes?", "Recent notes"],
+];
+const suggestEl = $("suggest");
+let sugg = [], suggAt = 0;
+
+function suggestions(t) {
+  if (t.startsWith("/") && !t.includes(" ")) {
+    const q = t.toLowerCase();
+    return COMMANDS.filter(([c]) => c.startsWith(q)).map(([c, ex, d]) => ({ label: c, desc: d, kind: "do", fill: ex ? c + " " : null, run: ex ? null : c }));
+  }
+  if (t.startsWith("?")) {
+    const q = t.slice(1).trim().toLowerCase();
+    return QUESTIONS.filter(([l]) => l.includes(q)).map(([l, d]) =>
+      l.includes(" ?") ? { label: "weather in …?", desc: d, kind: "ask", fill: "weather in ?", caret: 11 } : { label: l, desc: d, kind: "ask", run: l });
+  }
+  return [];
+}
+
+function renderSuggest() {
+  const was = !suggestEl.hidden;
+  sugg = suggestions(chatInput.value);
+  suggAt = Math.min(suggAt, Math.max(sugg.length - 1, 0));
+  suggestEl.textContent = "";
+  sugg.forEach((s, i) => {
+    const li = document.createElement("li");
+    li.setAttribute("role", "option");
+    if (i === suggAt) { li.className = "on"; li.setAttribute("aria-selected", "true"); }
+    const b = document.createElement("b");
+    b.className = s.kind;
+    b.textContent = s.label;
+    const d = document.createElement("span");
+    d.textContent = s.desc;
+    li.append(b, d);
+    li.addEventListener("mousedown", (e) => { e.preventDefault(); pickSuggest(i); });
+    suggestEl.appendChild(li);
+  });
+  suggestEl.hidden = sugg.length === 0;
+  $("chips").hidden = !suggestEl.hidden;
+  suggestEl.children[suggAt]?.scrollIntoView({ block: "nearest" });
+  if (was !== !suggestEl.hidden) sendHit(true);
+}
+
+function pickSuggest(i) {
+  const s = sugg[i];
+  if (!s) return;
+  if (s.run) { submit(s.run); return; }
+  chatInput.value = s.fill;
+  const at = s.caret ?? s.fill.length;
+  chatInput.setSelectionRange(at, at);
+  chatInput.focus();
+  reflect();
+}
+
 function reflect() {
   const t = chatInput.value;
   const k = t.trim() ? shapeOf(t) : "note";
+  renderSuggest();
+  const cmd = k === "do" && COMMANDS.find(([c, ex]) => ex && t.trim() === c);
+  if (cmd) { chatHint.textContent = `e.g. ${cmd[0]} ${cmd[1]}`; chatHint.className = k; chatSend.textContent = "Run"; chatSend.className = k; return; }
   chatHint.textContent = { do: "Enter runs the command", ask: "Enter asks", note: "Enter saves a note" }[k];
   chatHint.className = k === "note" ? "" : k;
   chatSend.textContent = { do: "Run", ask: "Ask", note: "Save" }[k];
@@ -523,9 +607,21 @@ function act(action) {
   if (action === "quit") setTimeout(() => invoke("quit_app"), 900);
 }
 
-chatInput.addEventListener("input", reflect);
+chatInput.addEventListener("input", () => { suggAt = 0; reflect(); });
 chatInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); submit(chatInput.value); }
+  if (e.isComposing) return;
+  if (!suggestEl.hidden) {
+    const n = sugg.length;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      suggAt = (suggAt + (e.key === "ArrowDown" ? 1 : n - 1)) % n;
+      renderSuggest();
+      return;
+    }
+    if (e.key === "Enter" || e.key === "Tab") { e.preventDefault(); pickSuggest(suggAt); return; }
+    if (e.key === "Escape") { e.stopPropagation(); chatInput.value = ""; reflect(); return; }
+  }
+  if (e.key === "Enter") { e.preventDefault(); submit(chatInput.value); }
 });
 chatSend.addEventListener("click", () => submit(chatInput.value));
 $("chips").addEventListener("click", (e) => {

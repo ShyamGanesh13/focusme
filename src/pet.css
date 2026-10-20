@@ -166,6 +166,7 @@ html, body {
 #chatLog .a.pending { color: var(--muted); }
 
 #chips { display: flex; flex-wrap: wrap; gap: 5px; }
+#chips[hidden] { display: none; }
 #chips button {
   border: 0; border-radius: 999px; padding: 3px 9px;
   background: rgba(255, 255, 255, .85); color: var(--ink);
@@ -173,6 +174,23 @@ html, body {
   box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
 }
 #chips button:hover { background: #fff; }
+
+#suggest {
+  list-style: none; margin: 0; padding: 5px;
+  background: var(--paper); border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .22);
+  max-height: 240px; overflow-y: auto;
+}
+#suggest[hidden] { display: none; }
+#suggest li {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 5px 9px; border-radius: 8px; cursor: pointer; font-size: 13px;
+}
+#suggest li b { font-weight: 600; color: var(--ink); white-space: nowrap; }
+#suggest li b.do { color: var(--cmd); }
+#suggest li b.ask { color: var(--accent); }
+#suggest li span { color: var(--muted); font-size: 11.5px; }
+#suggest li.on { background: #eef2ff; }
 
 #chatBox {
   background: var(--paper); border-radius: 14px;
