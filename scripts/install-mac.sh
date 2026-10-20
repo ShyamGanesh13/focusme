@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 #
-# Build FocusMe as a real macOS app, install it to /Applications, and launch it.
+# Build FocusMe as a real macOS app, install it to ~/Applications, and launch it.
+# (~/Applications, not /Applications: no admin rights needed, and some managed
+# Macs block writes to /Applications.)
 # After this you never need a terminal again: FocusMe runs in the menu bar as a
 # background app, survives closing the terminal, and (with "Open at login" on,
 # the default) relaunches after a restart.
@@ -15,10 +17,11 @@ cd "$(dirname "$0")/.."
 
 APP_NAME="FocusMe.app"
 BUNDLE="src-tauri/target/release/bundle/macos/$APP_NAME"
-DEST="/Applications/$APP_NAME"
+DEST="$HOME/Applications/$APP_NAME"
 
 echo "▶ Building $APP_NAME (release) — this takes a few minutes the first time…"
-npm run build
+# Only the .app is needed to install; the .dmg step is slow and flaky (hdiutil "Resource busy").
+npx tauri build --bundles app
 
 if [ ! -d "$BUNDLE" ]; then
   echo "✗ Build output not found at $BUNDLE" >&2
@@ -27,10 +30,11 @@ fi
 
 echo "▶ Quitting any running FocusMe so the new build takes over…"
 osascript -e 'quit app "FocusMe"' >/dev/null 2>&1 || true
-pkill -x FocusMe >/dev/null 2>&1 || true
+pkill -f "FocusMe.app/Contents/MacOS/deskpal" >/dev/null 2>&1 || true
 sleep 1
 
 echo "▶ Installing to $DEST…"
+mkdir -p "$HOME/Applications"
 rm -rf "$DEST"
 cp -R "$BUNDLE" "$DEST"
 

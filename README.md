@@ -20,10 +20,10 @@ and everything stays on your Mac.
 
 ```bash
 ./scripts/setup-mac.sh     # Xcode CLT + Rust + npm install, only what's missing
-./scripts/install-mac.sh   # build + install to /Applications + launch (the everyday way)
+./scripts/install-mac.sh   # build + install to ~/Applications + launch (the everyday way)
 ```
 
-`install-mac.sh` builds FocusMe, installs it to `/Applications`, and launches it as a
+`install-mac.sh` builds FocusMe, installs it to `~/Applications`, and launches it as a
 background menu-bar app — **you can then close the terminal and it keeps running**, and it
 relaunches at login. Re-run the script any time to update the installed app to your latest
 code. (First launch of an unsigned build may need a right-click → Open; see Development.)
@@ -111,7 +111,7 @@ Data lives in `~/Library/Application Support/com.shyamganesh.deskpal/` as `confi
 npm run preview                        # UI in a browser with a mock backend
 cd src-tauri && cargo test             # 17 unit tests (parser, intents, scheduler)
 npm run build                          # .app + .dmg in src-tauri/target/release/bundle
-./scripts/install-mac.sh               # build + install to /Applications + relaunch
+./scripts/install-mac.sh               # build + install to ~/Applications + relaunch
 ```
 
 The unsigned build may be blocked on first launch. To open it, right-click FocusMe.app →

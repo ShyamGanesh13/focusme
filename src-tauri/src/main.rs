@@ -33,7 +33,9 @@ fn main() {
                 let want = app.state::<state::AppState>().config.lock().unwrap().login_item;
                 let al = app.autolaunch();
                 let is_on = al.is_enabled().unwrap_or(false);
-                if want && !is_on {
+                // A release build always re-registers so the login item points at
+                // *this* install, not a dev binary that got there first.
+                if want && (!is_on || !cfg!(debug_assertions)) {
                     let _ = al.enable();
                 } else if !want && is_on {
                     let _ = al.disable();
