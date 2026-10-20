@@ -65,11 +65,15 @@ html, body {
 }
 
 /* ---------------------------------------------------------------- speech */
+/* The pet lives in the bottom-right corner, so the bubble is anchored to the
+   pet's right edge and grows up-and-to-the-LEFT, wrapping to more lines as
+   needed — it never runs off the right edge of the screen. */
 #bubble {
   position: absolute;
-  left: 50%; bottom: calc(100% + 10px);
-  transform: translateX(-50%);
-  max-width: 260px; width: max-content;
+  right: 0; left: auto; bottom: calc(100% + 10px);
+  transform-origin: bottom right;
+  max-width: min(300px, 80vw); width: max-content;
+  white-space: normal; overflow-wrap: anywhere;
   padding: 8px 12px;
   border-radius: 14px;
   background: var(--paper); color: var(--ink);
@@ -79,8 +83,7 @@ html, body {
   animation: pop .18s ease-out;
 }
 #bubble::after {
-  content: ""; position: absolute; left: 50%; top: 100%;
-  transform: translateX(-50%);
+  content: ""; position: absolute; right: 42px; top: 100%;
   border: 7px solid transparent; border-top-color: var(--paper);
 }
 #bubble.clickable { pointer-events: auto; cursor: pointer; }
@@ -94,7 +97,7 @@ html, body {
 }
 .bub-actions button:nth-child(n+2) { background: var(--chip); color: var(--ink); }
 .bub-actions button:hover { filter: brightness(1.05); }
-@keyframes pop { from { transform: translateX(-50%) scale(.8); opacity: 0; } }
+@keyframes pop { from { transform: scale(.8); opacity: 0; } }
 
 #badge {
   position: absolute; left: 50%; top: -6px; transform: translate(-50%, -100%);
