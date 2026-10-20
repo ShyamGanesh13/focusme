@@ -86,6 +86,7 @@ $("charFile").addEventListener("change", async (e) => {
   try {
     const isSvg = f.type === "image/svg+xml" || f.name.toLowerCase().endsWith(".svg");
     if (isSvg && f.size > 2 * 1024 * 1024) throw new Error("That SVG is over 2 MB — please simplify it.");
+    if (!isSvg && f.size > 20 * 1024 * 1024) throw new Error("That image is over 20 MB — please use a smaller one.");
     let text = isSvg ? await f.text() : await rasterToSvg(f);
     sanitizeSvg(text); // throws if it isn't an SVG
     text = await knockOutBackgrounds(text);
