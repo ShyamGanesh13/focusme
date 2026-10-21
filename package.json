@@ -1,7 +1,7 @@
 {
   "name": "deskpal",
   "private": true,
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "A desktop companion for macOS that lives above your Dock, chats, keeps notes, and runs focus timers.",
   "scripts": {
     "dev": "tauri dev",
