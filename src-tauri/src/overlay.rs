@@ -31,6 +31,10 @@ fn pet_windows(app: &AppHandle) -> Vec<WebviewWindow> {
         .collect()
 }
 
+/// How many monitors (so how many pet windows) are in use right now. Pets
+/// beyond this are hidden, not closed — see `reconcile_pets`.
+static ACTIVE_PETS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(1);
+
 fn pet_label(i: usize) -> String {
     if i == 0 { "pet".to_string() } else { format!("pet-{}", i + 1) }
 }
@@ -92,7 +96,14 @@ pub fn reconcile_pets(app: &AppHandle) {
         match app.get_webview_window(&label) {
             Some(w) => {
                 fit_window_to_monitor(&w, m);
-                pin_above_everything(&w);
+                // Pinning orders the window front, so skip it while the user has
+                // the pet hidden; re-show a pet that was parked for a missing monitor.
+                if visible {
+                    if !w.is_visible().unwrap_or(false) {
+                        let _ = w.show();
+                    }
+                    pin_above_everything(&w);
+                }
                 if first {
                     eprintln!("[focusme/overlay] {label}: target monitor pos={:?} size={:?} -> window at {:?} size {:?}",
                         m.position(), m.size(), w.outer_position().ok(), w.outer_size().ok());
@@ -120,8 +131,8 @@ pub fn reconcile_pets(app: &AppHandle) {
                         let _ = w.set_ignore_cursor_events(true);
                         if visible {
                             let _ = w.show();
+                            pin_above_everything(&w);
                         }
-                        pin_above_everything(&w);
                         eprintln!("[focusme/overlay] created {label}: target pos={:?} -> window at {:?} size {:?}",
                             m.position(), w.outer_position().ok(), w.outer_size().ok());
                     }
@@ -131,19 +142,22 @@ pub fn reconcile_pets(app: &AppHandle) {
         }
     }
 
-    // Close overlays for monitors that are no longer present (keep "pet").
+    // Monitor gone: hide its overlay, never close it. Closing crashes the app —
+    // the window was re-classed into FocusMePanel (pin_above_everything), which
+    // clobbers AppKit's KVO class swizzle, so WebKit's removeObserver on
+    // teardown throws and aborts. A hidden overlay is reused if a monitor returns.
     let n = ordered.len().max(1);
+    ACTIVE_PETS.store(n, Ordering::Relaxed);
     for w in pet_windows(app) {
-        if w.label() != "pet" && pet_index(w.label()) >= n {
-            let _ = w.close();
+        if pet_index(w.label()) >= n && w.is_visible().unwrap_or(false) {
+            let _ = w.hide();
         }
     }
 
     // Log the summary only when the overlay count changes (not every 2s).
     static LAST: AtomicUsize = AtomicUsize::new(usize::MAX);
-    let count = pet_windows(app).len();
-    if LAST.swap(count, Ordering::Relaxed) != count {
-        eprintln!("[focusme/overlay] monitors={} overlays={}", mons.len(), count);
+    if LAST.swap(n, Ordering::Relaxed) != n {
+        eprintln!("[focusme/overlay] monitors={} active overlays={n} (total {})", mons.len(), pet_windows(app).len());
     }
 }
 
@@ -368,8 +382,9 @@ fn hit_loop(app: AppHandle) {
 
 pub fn set_pet_visible(app: &AppHandle, visible: bool) {
     app.state::<AppState>().visible.store(visible, Ordering::Relaxed);
+    let active = ACTIVE_PETS.load(Ordering::Relaxed);
     for w in pet_windows(app) {
-        let _ = if visible { w.show() } else { w.hide() };
+        let _ = if visible && pet_index(w.label()) < active { w.show() } else { w.hide() };
     }
     let _ = app.emit("pet-visible", visible);
 }
