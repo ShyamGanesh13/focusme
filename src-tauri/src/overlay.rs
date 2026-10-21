@@ -322,10 +322,18 @@ fn hit_loop(app: AppHandle) {
     let mut catching: std::collections::HashMap<String, bool> = std::collections::HashMap::new();
     let mut last_cursor = (f64::NAN, f64::NAN);
     let mut last_emit = Instant::now();
+    let mut tick: u32 = 0;
     loop {
         std::thread::sleep(Duration::from_millis(25));
+        tick = tick.wrapping_add(1);
         let Ok(cur) = app.cursor_position() else { continue };
         let moved = (cur.x - last_cursor.0).abs() > 1.0 || (cur.y - last_cursor.1).abs() > 1.0;
+        // Mouse still: only re-check every 100ms (a bubble/chat may open under
+        // it). The per-window queries below hop to the main thread, so 40Hz
+        // forever was the bulk of the idle CPU.
+        if !moved && tick % 4 != 0 {
+            continue;
+        }
         let do_emit = moved && last_emit.elapsed() >= Duration::from_millis(50);
 
         for win in pet_windows(&app) {

@@ -202,7 +202,11 @@ function frame(now) {
 
   place();
   sendHit();
-  requestAnimationFrame(frame);
+  // Tucked away (peek mode) nothing on screen changes, so tick 4×/s instead of
+  // 60 — the difference between ~9% and ~1% idle CPU on battery. A nudge still
+  // slides the pet out within 250 ms, and the slide itself runs at full rate.
+  if (peekMode && shown === 0 && target === 0 && !press) setTimeout(() => requestAnimationFrame(frame), 250);
+  else requestAnimationFrame(frame);
 }
 
 // ------------------------------------------------------------ speech + effects
