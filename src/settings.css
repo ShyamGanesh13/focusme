@@ -81,7 +81,8 @@ code { font: 12px ui-monospace, "SF Mono", Menlo, monospace; background: rgba(12
 .btn:hover { border-color: var(--accent); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .btn.danger { color: var(--danger); }
-#remAdd { margin-top: 12px; }
+#remAdd, #remClear { margin-top: 12px; }
+.btn[hidden] { display: none; }
 
 .list { display: flex; flex-direction: column; gap: 6px; }
 .item {

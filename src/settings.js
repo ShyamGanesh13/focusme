@@ -209,17 +209,24 @@ $("sessionStart").addEventListener("click", () => invoke("start_session", { minu
 $("sessionStop").addEventListener("click", () => invoke("stop_session"));
 
 // ------------------------------------------------------------ reminders
-function defaultWhen() {
-  const d = new Date(Date.now() + 60 * 60 * 1000);
-  d.setSeconds(0, 0);
+// "YYYY-MM-DDTHH:MM" in local time — the format Reminder.at and <input type=datetime-local> use.
+function localStamp(d) {
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
 }
+function defaultWhen() {
+  return localStamp(new Date(Date.now() + 60 * 60 * 1000));
+}
+// Fired or missed: its time has already passed.
+const isPast = (r) => r.done || r.at < localStamp(new Date());
 
 function renderReminders() {
   const list = $("remList");
   list.replaceChildren();
   const rows = [...cfg.reminders].sort((a, b) => (a.done - b.done) || a.at.localeCompare(b.at));
+  const past = rows.filter(isPast).length;
+  $("remClear").hidden = past === 0;
+  $("remClear").textContent = `Clear past (${past})`;
   if (!rows.length) {
     const e = document.createElement("div");
     e.className = "empty";
@@ -243,6 +250,11 @@ function renderReminders() {
     list.appendChild(item);
   }
 }
+$("remClear").addEventListener("click", () => {
+  cfg.reminders = cfg.reminders.filter((r) => !isPast(r));
+  save();
+  renderReminders();
+});
 $("remAdd").addEventListener("click", () => {
   cfg.reminders.push({ id: 0, text: "", at: defaultWhen(), done: false });
   renderReminders();
